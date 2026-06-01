@@ -98,25 +98,8 @@ func (b *Board) PrintBoard() {
 
 // NewStartingBoard creates a new Board object initialized with the starting position
 func NewStartingBoard() *Board {
-	b := &Board{
-		ActiveColor:     true,
-		CastlingRights:  0b1111,
-		EnPassantSquare: -1,
-	}
-
-	b.Pieces[W_Pawn] = 0x000000000000FF00   // a2-h2 (bits 8-15)
-	b.Pieces[W_Knight] = 0x0000000000000042 // b1,g1 (bits 1,7)
-	b.Pieces[W_Bishop] = 0x0000000000000024 // c1,f1 (bits 2,6)
-	b.Pieces[W_Rook] = 0x0000000000000081   // a1,h1 (bits 0,5)
-	b.Pieces[W_Queen] = 0x0000000000000008  // d1 (bit 3)
-	b.Pieces[W_King] = 0x0000000000000010   // e1 (bit 4)
-
-	b.Pieces[B_Pawn] = 0x00FF000000000000   // a7-h7 (bits 48-55)
-	b.Pieces[B_Knight] = 0x4200000000000000 // b8,g8 (bits 57,62)
-	b.Pieces[B_Bishop] = 0x2400000000000000 // c8,f8 (bits 58,61)
-	b.Pieces[B_Rook] = 0x8100000000000000   // a8,h8 (bits 56,63)
-	b.Pieces[B_Queen] = 0x0800000000000000  // d8 (bit 59)
-	b.Pieces[B_King] = 0x1000000000000000   // e8 (bit 60)
+	b := &Board{}
+	b.ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 
 	return b
 }
