@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+// ParseFEN sets the current board state to a FEN.
 func (b *Board) ParseFEN(fen string) error {
 	*b = Board{}
 
@@ -28,6 +29,7 @@ func (b *Board) ParseFEN(fen string) error {
 		rank := 7 - r
 		file := 0
 
+		// loop through FEN 1st field (xxxx/xxxx/xxxx/xxxx...)
 		for _, symbol := range ranks[r] {
 			if symbol >= '1' && symbol <= '8' {
 				emptySquares, _ := strconv.Atoi(string(symbol))
@@ -47,6 +49,8 @@ func (b *Board) ParseFEN(fen string) error {
 			}
 		}
 	}
+
+	b.SetGeneralBitboards()
 
 	if activeColor != "w" && activeColor != "b" {
 		return fmt.Errorf("invalid FEN active color: expected 'w' or 'b', got '%s'", activeColor)

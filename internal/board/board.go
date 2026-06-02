@@ -37,8 +37,15 @@ var symbolToPieceMap = map[rune]Piece{
 }
 
 type Board struct {
-	// an array of 12 bitboards. Index 0-5
+	// an array of 12 bitboards, one for each piece.
+	// index 0-5 for White, 6-11 for Black.
+	// In order: pawn, knight, bishop, rook, queen, king.
 	Pieces [12]uint64
+
+	// bitboards for white, black, and all pieces
+	WPieces   uint64
+	BPieces   uint64
+	AllPieces uint64
 
 	// true for White, false for Black
 	ActiveColor bool
@@ -51,6 +58,7 @@ type Board struct {
 	EnPassantSquare int
 }
 
+// symbolToPiece converts a symbol (e.g. 'q') to a Piece (e.g. B_Queen)
 func symbolToPiece(symbol rune) Piece {
 	if piece, ok := symbolToPieceMap[symbol]; ok {
 		return piece
@@ -69,6 +77,24 @@ func (b *Board) SetPiece(piece Piece, square int) {
 func (b *Board) ClearPiece(piece Piece, square int) {
 	var bit uint64 = 1 << square
 	b.Pieces[piece] &^= bit
+}
+
+// SetGeneralBitboards sets the bitboard values for WPieces, BPieces, and AllPieces
+func (b *Board) SetGeneralBitboards() {
+	// reset bitboards to 0
+	b.WPieces = 0
+	b.BPieces = 0
+	b.AllPieces = 0
+
+	for p := W_Pawn; p <= W_King; p++ {
+		b.WPieces |= b.Pieces[p]
+	}
+
+	for p := B_Pawn; p <= B_King; p++ {
+		b.BPieces |= b.Pieces[p]
+	}
+
+	b.AllPieces = b.WPieces | b.BPieces
 }
 
 // PrintBoard prints the current board state to the console

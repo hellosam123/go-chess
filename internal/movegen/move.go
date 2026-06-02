@@ -34,31 +34,38 @@ const (
 	PromoteCaptureQ Flag = 15 << 12
 )
 
+// create a new Move stored in uint16 format
 func New(from int, to int, flag Flag) Move {
 
 	return Move(uint16(from) | uint16(to)<<6 | uint16(flag))
 }
 
+// return the starting square as an int (0-63)
 func (m Move) GetFrom() int {
 	return int(uint16(m) & FromMask)
 }
 
+// return the ending square as an int (0-63)
 func (m Move) GetTo() int {
 	return int((uint16(m) & ToMask) >> 6)
 }
 
+// return the flag as a Flag (uint16)
 func (m Move) GetFlag() Flag {
 	return Flag(uint16(m) & FlagMask)
 }
 
+// return if the move is a capture
 func (m Move) IsCapture() bool {
 	return uint16(m)&(4<<12) != 0
 }
 
+// return if the move is a promotion
 func (m Move) IsPromotion() bool {
 	return uint16(m)&(8<<12) != 0
 }
 
+// return a Move formatted as a string in long algebraic notation (e.g. e2e4, a7a8q)
 func (m Move) String() string {
 	fromStr := squares.IndexToSquareArray[m.GetFrom()]
 	toStr := squares.IndexToSquareArray[m.GetTo()]
