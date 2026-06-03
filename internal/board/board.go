@@ -1,5 +1,6 @@
 // Package board handles the internal representation of a chess board,
-// including piece placement, game state tracking, and FEN string conversion.
+// including piece placement, game state tracking, FEN string conversion,
+// move representation, and move generation.
 package board
 
 import "fmt"
@@ -77,6 +78,17 @@ func (b *Board) SetPiece(piece Piece, square int) {
 func (b *Board) ClearPiece(piece Piece, square int) {
 	var bit uint64 = 1 << square
 	b.Pieces[piece] &^= bit
+}
+
+// GetPiece gets the piece (type Piece) at a specific square index (0-63)
+func (b *Board) GetPiece(square int) Piece {
+	for piece, pieceMask := range b.Pieces {
+		if (1<<square)&pieceMask != 0 {
+			return Piece(piece)
+		}
+	}
+
+	return Empty
 }
 
 // SetGeneralBitboards sets the bitboard values for WPieces, BPieces, and AllPieces

@@ -2,7 +2,6 @@ package board
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 )
 
@@ -32,7 +31,7 @@ func (b *Board) ParseFEN(fen string) error {
 		// loop through FEN 1st field (xxxx/xxxx/xxxx/xxxx...)
 		for _, symbol := range ranks[r] {
 			if symbol >= '1' && symbol <= '8' {
-				emptySquares, _ := strconv.Atoi(string(symbol))
+				emptySquares := int(symbol - '0')
 				file += emptySquares
 			} else {
 				piece := symbolToPiece(symbol)
