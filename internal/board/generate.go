@@ -22,58 +22,8 @@ func init() {
 	precalculateKingAttacks()
 }
 
-// precalculateKnightAttacks calculates all knight attacks for each
-// square and saves it in knightAttacks as an array of bitboards
-func precalculateKnightAttacks() {
-	// offsets in squares clockwise from North
-	rankOffsets := []int{2, 1, -1, -2, -2, -1, 1, 2}
-	fileOffsets := []int{1, 2, 2, 1, -1, -2, -2, -1}
-
-	for sq := 0; sq < 64; sq++ {
-		rank := sq / 8
-		file := sq % 8
-
-		var attacks uint64
-		for i := 0; i < 8; i++ {
-			attackRank := rank + rankOffsets[i]
-			attackFile := file + fileOffsets[i]
-
-			if attackRank >= 0 && attackRank < 8 && attackFile >= 0 && attackFile < 8 {
-				attackSq := attackRank*8 + attackFile
-				attacks |= 1 << attackSq
-			}
-		}
-		knightAttacks[sq] = attacks
-	}
-}
-
-// precalculateKingAttacks calculates all king attacks for each
-// square and saves it in kingAttacks as an array of bitboards
-func precalculateKingAttacks() {
-	// offsets in squares clockwise from North
-	rankOffsets := []int{1, 1, 0, -1, -1, -1, 0, 1}
-	fileOffsets := []int{0, 1, 1, 1, 0, -1, -1, -1}
-
-	for sq := 0; sq < 64; sq++ {
-		rank := sq / 8
-		file := sq % 8
-
-		var attacks uint64
-		for i := 0; i < 8; i++ {
-			attackRank := rank + rankOffsets[i]
-			attackFile := file + fileOffsets[i]
-
-			if attackRank >= 0 && attackRank < 8 && attackFile >= 0 && attackFile < 8 {
-				attackSq := attackRank*8 + attackFile
-				attacks |= 1 << attackSq
-			}
-		}
-		kingAttacks[sq] = attacks
-	}
-}
-
 // GenerateLegalMoves generates all legal moves in a board
-func GenerateLegalMoves(b *Board) []Move {
+func (b *Board) GenerateLegalMoves() []Move {
 	moves := make([]Move, 0, 64)
 
 	var kingSq int
@@ -565,6 +515,56 @@ func generateKingMoves(b *Board, checkers int, moves *[]Move) {
 				}
 			}
 		}
+	}
+}
+
+// precalculateKnightAttacks calculates all knight attacks for each
+// square and saves it in knightAttacks as an array of bitboards
+func precalculateKnightAttacks() {
+	// offsets in squares clockwise from North
+	rankOffsets := []int{2, 1, -1, -2, -2, -1, 1, 2}
+	fileOffsets := []int{1, 2, 2, 1, -1, -2, -2, -1}
+
+	for sq := 0; sq < 64; sq++ {
+		rank := sq / 8
+		file := sq % 8
+
+		var attacks uint64
+		for i := 0; i < 8; i++ {
+			attackRank := rank + rankOffsets[i]
+			attackFile := file + fileOffsets[i]
+
+			if attackRank >= 0 && attackRank < 8 && attackFile >= 0 && attackFile < 8 {
+				attackSq := attackRank*8 + attackFile
+				attacks |= 1 << attackSq
+			}
+		}
+		knightAttacks[sq] = attacks
+	}
+}
+
+// precalculateKingAttacks calculates all king attacks for each
+// square and saves it in kingAttacks as an array of bitboards
+func precalculateKingAttacks() {
+	// offsets in squares clockwise from North
+	rankOffsets := []int{1, 1, 0, -1, -1, -1, 0, 1}
+	fileOffsets := []int{0, 1, 1, 1, 0, -1, -1, -1}
+
+	for sq := 0; sq < 64; sq++ {
+		rank := sq / 8
+		file := sq % 8
+
+		var attacks uint64
+		for i := 0; i < 8; i++ {
+			attackRank := rank + rankOffsets[i]
+			attackFile := file + fileOffsets[i]
+
+			if attackRank >= 0 && attackRank < 8 && attackFile >= 0 && attackFile < 8 {
+				attackSq := attackRank*8 + attackFile
+				attacks |= 1 << attackSq
+			}
+		}
+		kingAttacks[sq] = attacks
 	}
 }
 

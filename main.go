@@ -1,16 +1,53 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/hellosam123/go-chess/internal/board"
+	"github.com/hellosam123/go-chess/uci"
 )
 
 func main() {
 	fmt.Println("A Golang chess engine")
 	gameBoard := board.NewStartingBoard()
-	// gameBoard.ParseFEN("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1")
+	scanner := bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
 
-	gameBoard.PrintBoard()
+		tokens := strings.Fields(line)
+		command := tokens[0]
+
+		switch command {
+		case "uci":
+			fmt.Println("id name GoChess v1.0")
+			fmt.Println("id author isfsam")
+			fmt.Println("uciok")
+		case "isready":
+			fmt.Println("readyok")
+		case "ucinewgame":
+			gameBoard.ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+		case "position":
+			err := uci.HandlePosition(gameBoard, tokens[1:])
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+				os.Exit(1)
+			}
+		case "go":
+			uci.HandleGo(gameBoard, tokens[1:])
+		case "exit":
+			return
+		}
+
+		if err := scanner.Err(); err != nil {
+			fmt.Fprintf(os.Stderr, "UCI loop read error: %v\n", err)
+			os.Exit(1)
+		}
+	}
 
 }

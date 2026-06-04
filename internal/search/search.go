@@ -7,8 +7,8 @@ import (
 	"github.com/hellosam123/go-chess/internal/board"
 )
 
-func RandomMove(b *board.Board) {
-	moves := board.GenerateLegalMoves(b)
+func RandomMove(b *board.Board) board.Move {
+	moves := b.GenerateLegalMoves()
 	moveIndex := rand.IntN(len(moves))
-	b.MakeMove(moves[moveIndex])
+	return moves[moveIndex]
 }
