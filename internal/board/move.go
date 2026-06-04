@@ -8,6 +8,9 @@ type Move uint16
 type Flag uint16
 
 type UnMove struct {
+	enPassantSquare int
+	castlingRights  uint8
+	capturedPiece   Piece
 }
 
 // bitmasks to extract data from Move object
@@ -67,7 +70,7 @@ func (m Move) IsPromotion() bool {
 }
 
 // return a Move formatted as a string in long algebraic notation (e.g. e2e4, a7a8q)
-func (m Move) ToString() string {
+func (m Move) MoveToString() string {
 	fromStr := squares.IndexToSquareArray[m.GetFrom()]
 	toStr := squares.IndexToSquareArray[m.GetTo()]
 	promotionStr := ""
@@ -89,7 +92,13 @@ func (m Move) ToString() string {
 }
 
 // takes a Move input and updates the board state
-func (b *Board) MakeMove(m Move) {
+func (b *Board) MakeMove(m Move) UnMove {
+	unMove := UnMove{
+		enPassantSquare: b.EnPassantSquare,
+		castlingRights:  b.CastlingRights,
+		capturedPiece:   0,
+	}
+
 	b.EnPassantSquare = -1
 	from := m.GetFrom()
 	to := m.GetTo()
@@ -129,6 +138,7 @@ func (b *Board) MakeMove(m Move) {
 	if m.IsCapture() && flag != EnPassant {
 		toPiece := b.GetPiece(to)
 		b.ClearPiece(toPiece, to)
+		unMove.capturedPiece = toPiece
 	}
 
 	fromPiece := b.GetPiece(from)
@@ -194,5 +204,85 @@ func (b *Board) MakeMove(m Move) {
 	}
 
 	b.ActiveColor = !b.ActiveColor
+	b.SetGeneralBitboards()
+
+	return unMove
+}
+
+func (b *Board) UnMakeMove(m Move, unMove UnMove) {
+	from := m.GetFrom()
+	to := m.GetTo()
+	flag := m.GetFlag()
+	b.ActiveColor = !b.ActiveColor
+
+	switch flag {
+	case KingCastle:
+		if b.ActiveColor {
+			b.ClearPiece(W_Rook, squares.F1)
+			b.SetPiece(W_Rook, squares.H1)
+		} else {
+			b.ClearPiece(B_Rook, squares.F8)
+			b.SetPiece(B_Rook, squares.H8)
+		}
+	case QueenCastle:
+		if b.ActiveColor {
+			b.ClearPiece(W_Rook, squares.D1)
+			b.SetPiece(W_Rook, squares.A1)
+		} else {
+			b.ClearPiece(B_Rook, squares.D8)
+			b.SetPiece(B_Rook, squares.A8)
+		}
+	case EnPassant:
+		if b.ActiveColor {
+			b.SetPiece(B_Pawn, to-8)
+		} else {
+			b.SetPiece(W_Pawn, to+8)
+		}
+	}
+
+	if m.IsPromotion() {
+		switch flag {
+		case PromoteN, PromoteCaptureN:
+			if b.ActiveColor {
+				b.ClearPiece(W_Knight, to)
+			} else {
+				b.ClearPiece(B_Knight, to)
+			}
+		case PromoteB, PromoteCaptureB:
+			if b.ActiveColor {
+				b.ClearPiece(W_Bishop, to)
+			} else {
+				b.ClearPiece(B_Bishop, to)
+			}
+		case PromoteR, PromoteCaptureR:
+			if b.ActiveColor {
+				b.ClearPiece(W_Rook, to)
+			} else {
+				b.ClearPiece(B_Rook, to)
+			}
+		case PromoteQ, PromoteCaptureQ:
+			if b.ActiveColor {
+				b.ClearPiece(W_Queen, to)
+			} else {
+				b.ClearPiece(B_Queen, to)
+			}
+		}
+		if b.ActiveColor {
+			b.SetPiece(W_Pawn, from)
+		} else {
+			b.SetPiece(B_Pawn, from)
+		}
+	} else {
+		fromPiece := b.GetPiece(to)
+		b.ClearPiece(fromPiece, to)
+		b.SetPiece(fromPiece, from)
+	}
+
+	if m.IsCapture() && flag != EnPassant {
+		b.SetPiece(unMove.capturedPiece, to)
+	}
+
+	b.EnPassantSquare = unMove.enPassantSquare
+	b.CastlingRights = unMove.castlingRights
 	b.SetGeneralBitboards()
 }
