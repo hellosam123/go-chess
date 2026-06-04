@@ -56,7 +56,8 @@ func HandlePosition(b *board.Board, args []string) error {
 }
 
 func HandleGo(b *board.Board, args []string) {
-	move := search.RandomMove(b)
+	_, move := search.Search(b, 5)
 	moveStr := move.MoveToString()
+	// fmt.Printf("info depth 5 score cp 100 nodes 1000 time 10\n")
 	fmt.Printf("bestmove %s\n", moveStr)
 }
