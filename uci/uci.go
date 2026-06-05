@@ -3,6 +3,7 @@ package uci
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/hellosam123/go-chess/internal/board"
@@ -56,8 +57,10 @@ func HandlePosition(b *board.Board, args []string) error {
 }
 
 func HandleGo(b *board.Board, args []string) {
-	_, move := search.Search(b, 5)
+	score, move := search.Search(b, 5)
 	moveStr := move.MoveToString()
-	// fmt.Printf("info depth 5 score cp 100 nodes 1000 time 10\n")
+	fmt.Printf("info score cp %d\n", score)
 	fmt.Printf("bestmove %s\n", moveStr)
+
+	os.Stdout.Sync()
 }
