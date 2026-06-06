@@ -11,7 +11,7 @@ func Perft(b *Board, depth int) int {
 
 	var nodes int = 0
 
-	moves := b.GenerateLegalMoves()
+	moves, _ := b.GenerateLegalMoves()
 	for _, m := range moves {
 		unMove := b.MakeMove(m)
 		nodes += Perft(b, depth-1)

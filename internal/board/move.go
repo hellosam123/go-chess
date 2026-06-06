@@ -9,8 +9,9 @@ type Flag uint16
 
 type UnMove struct {
 	enPassantSquare int
-	castlingRights  uint8
+	castlingRights  byte
 	capturedPiece   Piece
+	hashKey         uint64
 }
 
 // bitmasks to extract data from Move object
@@ -97,9 +98,14 @@ func (b *Board) MakeMove(m Move) UnMove {
 		enPassantSquare: b.EnPassantSquare,
 		castlingRights:  b.CastlingRights,
 		capturedPiece:   0,
+		hashKey:         b.HashKey,
 	}
 
-	b.EnPassantSquare = -1
+	if b.EnPassantSquare != -1 {
+		b.HashKey ^= EnPassantTable[b.EnPassantSquare%8]
+		b.EnPassantSquare = -1
+	}
+
 	from := m.GetFrom()
 	to := m.GetTo()
 	flag := m.GetFlag()
@@ -113,64 +119,64 @@ func (b *Board) MakeMove(m Move) UnMove {
 		}
 	case KingCastle:
 		if b.ActiveColor {
-			b.ClearPiece(W_Rook, squares.H1)
-			b.SetPiece(W_Rook, squares.F1)
+			b.RemovePiece(W_Rook, squares.H1)
+			b.PutPiece(W_Rook, squares.F1)
 		} else {
-			b.ClearPiece(B_Rook, squares.H8)
-			b.SetPiece(B_Rook, squares.F8)
+			b.RemovePiece(B_Rook, squares.H8)
+			b.PutPiece(B_Rook, squares.F8)
 		}
 	case QueenCastle:
 		if b.ActiveColor {
-			b.ClearPiece(W_Rook, squares.A1)
-			b.SetPiece(W_Rook, squares.D1)
+			b.RemovePiece(W_Rook, squares.A1)
+			b.PutPiece(W_Rook, squares.D1)
 		} else {
-			b.ClearPiece(B_Rook, squares.A8)
-			b.SetPiece(B_Rook, squares.D8)
+			b.RemovePiece(B_Rook, squares.A8)
+			b.PutPiece(B_Rook, squares.D8)
 		}
 	case EnPassant:
 		if b.ActiveColor {
-			b.ClearPiece(B_Pawn, to-8)
+			b.RemovePiece(B_Pawn, to-8)
 		} else {
-			b.ClearPiece(W_Pawn, to+8)
+			b.RemovePiece(W_Pawn, to+8)
 		}
 	}
 
 	if m.IsCapture() && flag != EnPassant {
 		toPiece := b.GetPiece(to)
-		b.ClearPiece(toPiece, to)
+		b.RemovePiece(toPiece, to)
 		unMove.capturedPiece = toPiece
 	}
 
 	fromPiece := b.GetPiece(from)
-	b.ClearPiece(fromPiece, from)
-	b.SetPiece(fromPiece, to)
+	b.RemovePiece(fromPiece, from)
+	b.PutPiece(fromPiece, to)
 
 	if m.IsPromotion() {
-		b.ClearPiece(fromPiece, to)
+		b.RemovePiece(fromPiece, to)
 		switch flag {
 		case PromoteN, PromoteCaptureN:
 			if b.ActiveColor {
-				b.SetPiece(W_Knight, to)
+				b.PutPiece(W_Knight, to)
 			} else {
-				b.SetPiece(B_Knight, to)
+				b.PutPiece(B_Knight, to)
 			}
 		case PromoteB, PromoteCaptureB:
 			if b.ActiveColor {
-				b.SetPiece(W_Bishop, to)
+				b.PutPiece(W_Bishop, to)
 			} else {
-				b.SetPiece(B_Bishop, to)
+				b.PutPiece(B_Bishop, to)
 			}
 		case PromoteR, PromoteCaptureR:
 			if b.ActiveColor {
-				b.SetPiece(W_Rook, to)
+				b.PutPiece(W_Rook, to)
 			} else {
-				b.SetPiece(B_Rook, to)
+				b.PutPiece(B_Rook, to)
 			}
 		case PromoteQ, PromoteCaptureQ:
 			if b.ActiveColor {
-				b.SetPiece(W_Queen, to)
+				b.PutPiece(W_Queen, to)
 			} else {
-				b.SetPiece(B_Queen, to)
+				b.PutPiece(B_Queen, to)
 			}
 		}
 	}
@@ -178,32 +184,56 @@ func (b *Board) MakeMove(m Move) UnMove {
 	if fromPiece == W_King || fromPiece == B_King || fromPiece == W_Rook || fromPiece == B_Rook {
 		switch from {
 		case squares.E1:
+			b.HashKey ^= CastlingTable[b.CastlingRights]
 			b.CastlingRights &^= 0b1100
+			b.HashKey ^= CastlingTable[b.CastlingRights]
 		case squares.H1:
+			b.HashKey ^= CastlingTable[b.CastlingRights]
 			b.CastlingRights &^= 0b1000
+			b.HashKey ^= CastlingTable[b.CastlingRights]
 		case squares.A1:
+			b.HashKey ^= CastlingTable[b.CastlingRights]
 			b.CastlingRights &^= 0b0100
+			b.HashKey ^= CastlingTable[b.CastlingRights]
 		case squares.E8:
+			b.HashKey ^= CastlingTable[b.CastlingRights]
 			b.CastlingRights &^= 0b0011
+			b.HashKey ^= CastlingTable[b.CastlingRights]
 		case squares.H8:
+			b.HashKey ^= CastlingTable[b.CastlingRights]
 			b.CastlingRights &^= 0b0010
+			b.HashKey ^= CastlingTable[b.CastlingRights]
 		case squares.A8:
+			b.HashKey ^= CastlingTable[b.CastlingRights]
 			b.CastlingRights &^= 0b0001
+			b.HashKey ^= CastlingTable[b.CastlingRights]
 		}
 	}
 
 	switch to {
 	case squares.H1:
+		b.HashKey ^= CastlingTable[b.CastlingRights]
 		b.CastlingRights &^= 0b1000
+		b.HashKey ^= CastlingTable[b.CastlingRights]
 	case squares.A1:
+		b.HashKey ^= CastlingTable[b.CastlingRights]
 		b.CastlingRights &^= 0b0100
+		b.HashKey ^= CastlingTable[b.CastlingRights]
 	case squares.H8:
+		b.HashKey ^= CastlingTable[b.CastlingRights]
 		b.CastlingRights &^= 0b0010
+		b.HashKey ^= CastlingTable[b.CastlingRights]
 	case squares.A8:
+		b.HashKey ^= CastlingTable[b.CastlingRights]
 		b.CastlingRights &^= 0b0001
+		b.HashKey ^= CastlingTable[b.CastlingRights]
 	}
 
 	b.ActiveColor = !b.ActiveColor
+	b.HashKey ^= ActiveColorMask
+	if b.EnPassantSquare != -1 {
+		b.HashKey ^= EnPassantTable[b.EnPassantSquare%8]
+	}
 	b.SetGeneralBitboards()
 
 	return unMove
@@ -219,24 +249,24 @@ func (b *Board) UnMakeMove(m Move, unMove UnMove) {
 	case KingCastle:
 		if b.ActiveColor {
 			b.ClearPiece(W_Rook, squares.F1)
-			b.SetPiece(W_Rook, squares.H1)
+			b.PutPiece(W_Rook, squares.H1)
 		} else {
 			b.ClearPiece(B_Rook, squares.F8)
-			b.SetPiece(B_Rook, squares.H8)
+			b.PutPiece(B_Rook, squares.H8)
 		}
 	case QueenCastle:
 		if b.ActiveColor {
 			b.ClearPiece(W_Rook, squares.D1)
-			b.SetPiece(W_Rook, squares.A1)
+			b.PutPiece(W_Rook, squares.A1)
 		} else {
 			b.ClearPiece(B_Rook, squares.D8)
-			b.SetPiece(B_Rook, squares.A8)
+			b.PutPiece(B_Rook, squares.A8)
 		}
 	case EnPassant:
 		if b.ActiveColor {
-			b.SetPiece(B_Pawn, to-8)
+			b.PutPiece(B_Pawn, to-8)
 		} else {
-			b.SetPiece(W_Pawn, to+8)
+			b.PutPiece(W_Pawn, to+8)
 		}
 	}
 
@@ -284,5 +314,6 @@ func (b *Board) UnMakeMove(m Move, unMove UnMove) {
 
 	b.EnPassantSquare = unMove.enPassantSquare
 	b.CastlingRights = unMove.castlingRights
+	b.HashKey = unMove.hashKey
 	b.SetGeneralBitboards()
 }

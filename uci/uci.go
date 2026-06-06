@@ -4,14 +4,18 @@ package uci
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/hellosam123/go-chess/internal/board"
+	eval "github.com/hellosam123/go-chess/internal/evaluation"
 	"github.com/hellosam123/go-chess/internal/search"
 )
 
 func MatchUCIString(b *board.Board, str string) (board.Move, error) {
-	var moves []board.Move = b.GenerateLegalMoves()
+	var moves []board.Move
+	moves, _ = b.GenerateLegalMoves()
 	for _, move := range moves {
 		if str == move.MoveToString() {
 			return move, nil
@@ -27,6 +31,8 @@ func HandlePosition(b *board.Board, args []string) error {
 	}
 
 	currentIndex := 0
+
+	b.ResetBoard()
 
 	if args[0] == "startpos" {
 		b.ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
@@ -56,11 +62,87 @@ func HandlePosition(b *board.Board, args []string) error {
 	return nil
 }
 
-func HandleGo(b *board.Board, args []string) {
-	score, move := search.Search(b, 5)
+func HandleGo(b *board.Board, args []string, tt *eval.TranspositionTable) error {
+	var timeLeft int  // in ms
+	var increment int // in ms
+	var err error
+
+	if len(args) == 0 {
+		timeLeft = 2000
+		increment = 100
+	} else {
+		for i := 0; i < len(args); i++ {
+			switch args[i] {
+			case "wtime":
+				if b.ActiveColor {
+					if i+1 < len(args) {
+						i++
+						timeLeft, err = strconv.Atoi(args[i])
+						if err != nil {
+							return fmt.Errorf("%v", err)
+						}
+					}
+				}
+			case "btime":
+				if !b.ActiveColor {
+					if i+1 < len(args) {
+						i++
+						timeLeft, err = strconv.Atoi(args[i])
+						if err != nil {
+							return fmt.Errorf("%v", err)
+						}
+					}
+				}
+			case "winc":
+				if b.ActiveColor {
+					if i+1 < len(args) {
+						i++
+						increment, err = strconv.Atoi(args[i])
+						if err != nil {
+							return fmt.Errorf("%v", err)
+						}
+					}
+				}
+			case "binc":
+				if !b.ActiveColor {
+					if i+1 < len(args) {
+						i++
+						increment, err = strconv.Atoi(args[i])
+						if err != nil {
+							return fmt.Errorf("%v", err)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	searchTimeBudget := time.Duration(timeLeft/20+increment/2) * time.Millisecond
+
+	move, score, depth, nodes, elapsed := search.RootSearch(b, searchTimeBudget, tt)
+	if !b.ActiveColor {
+		score = -score
+	}
+
 	moveStr := move.MoveToString()
-	fmt.Printf("info score cp %d\n", score)
+
+	mateThreshold := 99000
+	mateScore := 100000
+
+	if score > mateThreshold {
+		pliesToMate := mateScore - score
+		movesToMate := (pliesToMate + 1) / 2
+		fmt.Printf("info depth %d time %d nodes %d score mate %d\n", depth, elapsed, nodes, movesToMate)
+	} else if score < -mateThreshold {
+		pliesToMate := -mateScore - score
+		movesToMate := (pliesToMate + 1) / 2
+		fmt.Printf("info depth %d time %d nodes %d score mate %d\n", depth, elapsed, nodes, movesToMate)
+	} else {
+		fmt.Printf("info depth %d time %d nodes %d score cp %d\n", depth, elapsed, nodes, score)
+	}
 	fmt.Printf("bestmove %s\n", moveStr)
 
 	os.Stdout.Sync()
+
+	return nil
 }

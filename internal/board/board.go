@@ -57,6 +57,9 @@ type Board struct {
 
 	// int (0-63), -1 for None
 	EnPassantSquare int
+
+	// zobrist hash key
+	HashKey uint64
 }
 
 // symbolToPiece converts a symbol (e.g. 'q') to a Piece (e.g. B_Queen)
@@ -74,10 +77,22 @@ func (b *Board) SetPiece(piece Piece, square int) {
 	b.Pieces[piece] |= bit
 }
 
+// PutPiece calls SetPiece and XORs the hashkey with the PieceSquareTable of the piece and square
+func (b *Board) PutPiece(piece Piece, square int) {
+	b.SetPiece(piece, square)
+	b.HashKey ^= PieceSquareTable[piece][square]
+}
+
 // SetPiece turns off the corresponding bit for a specific piece at a square index (0-63)
 func (b *Board) ClearPiece(piece Piece, square int) {
 	var bit uint64 = 1 << square
 	b.Pieces[piece] &^= bit
+}
+
+// RemovePiece calls ClearPiece and XORs the hashkey with the PieceSquareTable of the piece and square
+func (b *Board) RemovePiece(piece Piece, square int) {
+	b.ClearPiece(piece, square)
+	b.HashKey ^= PieceSquareTable[piece][square]
 }
 
 // GetPiece gets the piece (type Piece) at a specific square index (0-63)
@@ -132,6 +147,11 @@ func (b *Board) PrintBoard() {
 	fmt.Println("  +-----------------+")
 	fmt.Println("    a b c d e f g h")
 
+}
+
+func (b *Board) ResetBoard() {
+	b = &Board{}
+	b.ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 }
 
 // NewStartingBoard creates a new Board object initialized with the starting position

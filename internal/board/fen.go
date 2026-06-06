@@ -85,5 +85,7 @@ func (b *Board) ParseFEN(fen string) error {
 		b.EnPassantSquare = -1
 	}
 
+	b.HashKey = GenerateZobristKey(b)
+
 	return nil
 }

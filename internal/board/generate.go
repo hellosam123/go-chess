@@ -22,8 +22,9 @@ func init() {
 	precalculateKingAttacks()
 }
 
-// GenerateLegalMoves generates all legal moves in a board
-func (b *Board) GenerateLegalMoves() []Move {
+// GenerateLegalMoves generates all legal moves in a board,
+// and returns a list of moves and number of checkers
+func (b *Board) GenerateLegalMoves() ([]Move, int) {
 	moves := make([]Move, 0, 64)
 
 	var kingSq int
@@ -43,7 +44,7 @@ func (b *Board) GenerateLegalMoves() []Move {
 	generateQueenMoves(b, pinMasks, checkMask, checkers, &moves)
 	generateKingMoves(b, checkers, &moves)
 
-	return moves
+	return moves, checkers
 }
 
 // generatePawnMoves generates all pseudo legal pawn moves in a board

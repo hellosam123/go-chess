@@ -32,6 +32,23 @@ func Evaluate(b *board.Board) int {
 	return evaluation
 }
 
+func GetPieceValue(p board.Piece) int {
+	switch p {
+	case board.W_Pawn, board.B_Pawn:
+		return pawnValue
+	case board.W_Knight, board.B_Knight:
+		return knightValue
+	case board.W_Bishop, board.B_Bishop:
+		return bishopValue
+	case board.W_Rook, board.B_Rook:
+		return rookValue
+	case board.W_Queen, board.B_Queen:
+		return queenValue
+	default:
+		return 0
+	}
+}
+
 func countMaterial(b *board.Board, color bool) int {
 	var material int
 	if color {

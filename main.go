@@ -7,11 +7,15 @@ import (
 	"strings"
 
 	"github.com/hellosam123/go-chess/internal/board"
+	eval "github.com/hellosam123/go-chess/internal/evaluation"
 	"github.com/hellosam123/go-chess/uci"
 )
 
 func main() {
 	fmt.Println("A Golang chess engine")
+
+	var globalTT *eval.TranspositionTable = eval.NewTranspositionTable(64)
+
 	gameBoard := board.NewStartingBoard()
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
@@ -32,6 +36,7 @@ func main() {
 			fmt.Println("readyok")
 		case "ucinewgame":
 			gameBoard.ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+			globalTT = eval.NewTranspositionTable(64)
 		case "position":
 			err := uci.HandlePosition(gameBoard, tokens[1:])
 			if err != nil {
@@ -39,7 +44,11 @@ func main() {
 				os.Exit(1)
 			}
 		case "go":
-			uci.HandleGo(gameBoard, tokens[1:])
+			err := uci.HandleGo(gameBoard, tokens[1:], globalTT)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+				os.Exit(1)
+			}
 		case "exit":
 			return
 		}
