@@ -13,6 +13,7 @@ func init() {
 	initZobrist()
 }
 
+// initZobrist initializes the zobrist table
 func initZobrist() {
 	source := rand.NewSource(31415926535)
 	r := rand.New(source)
@@ -34,6 +35,8 @@ func initZobrist() {
 	}
 }
 
+// GenerateZobristKey takes a position and generates its zobrist key.
+// This should only be used during board initialization.
 func GenerateZobristKey(b *Board) uint64 {
 	var finalKey uint64 = 0
 

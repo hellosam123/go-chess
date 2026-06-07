@@ -32,8 +32,6 @@ func HandlePosition(b *board.Board, args []string) error {
 
 	currentIndex := 0
 
-	b.ResetBoard()
-
 	if args[0] == "startpos" {
 		b.ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 		currentIndex = 1
@@ -126,8 +124,8 @@ func HandleGo(b *board.Board, args []string, tt *eval.TranspositionTable) error 
 
 	moveStr := move.MoveToString()
 
-	mateThreshold := 99000
-	mateScore := 100000
+	var mateThreshold int = 29000
+	var mateScore int = 30000
 
 	if score > mateThreshold {
 		pliesToMate := mateScore - score

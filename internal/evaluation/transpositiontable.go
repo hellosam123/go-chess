@@ -17,10 +17,10 @@ const (
 
 type TTEntry struct {
 	HashKey  uint64
-	Depth    int
-	Eval     int
-	Flag     HashFlag
+	Eval     int16
 	BestMove board.Move
+	Depth    int8
+	Flag     HashFlag
 }
 
 type TranspositionTable struct {

@@ -28,7 +28,7 @@ func OrderMoves(b *board.Board, moves []board.Move, tt *eval.TranspositionTable)
 
 	for i, m := range moves {
 		if m == ttBestMove {
-			scoredMoves[i] = scoredMove{move: m, score: 100000}
+			scoredMoves[i] = scoredMove{move: m, score: 30000}
 			continue
 		}
 
@@ -75,14 +75,13 @@ func OrderMoves(b *board.Board, moves []board.Move, tt *eval.TranspositionTable)
 	return sortedMoves
 }
 
-// GetCaptures takes a list of moves and filters for captures
-func GetCaptures(moves []board.Move) []board.Move {
-	var captures []board.Move = make([]board.Move, 0, len(moves))
+// GetAndOrderSharpMoves takes a list of moves and filters for sharp moves and orders them
+func GetAndOrderSharpMoves(b *board.Board, moves []board.Move, tt *eval.TranspositionTable) []board.Move {
+	var sharpMoves []board.Move = make([]board.Move, 0, len(moves))
 	for _, m := range moves {
-		if m.IsCapture() {
-			captures = append(captures, m)
+		if m.IsCapture() || m.IsPromotion() {
+			sharpMoves = append(sharpMoves, m)
 		}
 	}
-
-	return captures
+	return OrderMoves(b, sharpMoves, tt)
 }

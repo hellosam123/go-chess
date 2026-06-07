@@ -43,23 +43,29 @@ type Board struct {
 	// In order: pawn, knight, bishop, rook, queen, king.
 	Pieces [12]uint64
 
+	// list of zobrist hash keys
+	History []uint64
+
+	// zobrist hash key
+	HashKey uint64
+
 	// bitboards for white, black, and all pieces
 	WPieces   uint64
 	BPieces   uint64
 	AllPieces uint64
 
-	// true for White, false for Black
-	ActiveColor bool
+	// int (0-63), -1 for None
+	EnPassantSquare int
+
+	// checks for moves since last capture/pawn move
+	HalfMoveClock int
 
 	// bits 0-3, where 0: BQ, 1: BK, 2: WQ, 3: WK
 	// in binary: 0000 WK-WQ-BK-BQ
 	CastlingRights uint8
 
-	// int (0-63), -1 for None
-	EnPassantSquare int
-
-	// zobrist hash key
-	HashKey uint64
+	// true for White, false for Black
+	ActiveColor bool
 }
 
 // symbolToPiece converts a symbol (e.g. 'q') to a Piece (e.g. B_Queen)

@@ -16,7 +16,7 @@ func RandomMove(b *board.Board) board.Move {
 }
 
 // RootSearch uses iterative deepening and initializes the alpha-beta search.
-func RootSearch(b *board.Board, searchTimeBudget time.Duration, tt *eval.TranspositionTable) (move board.Move, eval int, depth int, nodes int, elapsed time.Duration) {
+func RootSearch(b *board.Board, searchTimeBudget time.Duration, tt *eval.TranspositionTable) (move board.Move, eval int, depth int8, nodes int, elapsed time.Duration) {
 	var totalNodes int
 	var searchTimeStart time.Time
 	var abort bool = false
@@ -25,7 +25,7 @@ func RootSearch(b *board.Board, searchTimeBudget time.Duration, tt *eval.Transpo
 
 	if len(moves) == 0 {
 		if checkers > 0 {
-			return 0, -100000, 0, 0, 0
+			return 0, -30000, 0, 0, 0
 		} else {
 			return 0, 0, 0, 0, 0
 		}
@@ -33,18 +33,18 @@ func RootSearch(b *board.Board, searchTimeBudget time.Duration, tt *eval.Transpo
 
 	moves = OrderMoves(b, moves, tt)
 
-	var finalBestEval int = -100000
+	var finalBestEval int = -30000
 	var finalBestMove board.Move
 	searchTimeStart = time.Now()
 
-	var currentDepth int
+	var currentDepth int8
 	for currentDepth = 1; currentDepth < 20; currentDepth++ {
 		if abort {
 			break
 		}
 
-		var alpha int = -100000
-		var beta int = 100000
+		var alpha int = -30000
+		var beta int = 30000
 		var bestMove board.Move
 
 		for _, m := range moves {
@@ -76,9 +76,9 @@ func RootSearch(b *board.Board, searchTimeBudget time.Duration, tt *eval.Transpo
 }
 
 // alphaBetaSearch recursively searches a position until a given depth, using alpha-beta pruning
-func alphaBetaSearch(b *board.Board, ply int, depth int, alpha int, beta int, tt *eval.TranspositionTable, nodes *int, searchTimeBudget *time.Duration, searchTimeStart *time.Time, abort *bool) int {
+func alphaBetaSearch(b *board.Board, ply int, depth int8, alpha int, beta int, tt *eval.TranspositionTable, nodes *int, searchTimeBudget *time.Duration, searchTimeStart *time.Time, abort *bool) int {
 	if depth <= 0 {
-		return quiescenceSearch(b, ply, alpha, beta, nodes)
+		return quiescenceSearch(b, ply, alpha, beta, tt, nodes)
 	}
 
 	if *abort {
@@ -91,14 +91,14 @@ func alphaBetaSearch(b *board.Board, ply int, depth int, alpha int, beta int, tt
 	currTTEntry := tt.Entries[TTIndex]
 
 	if currTTEntry.HashKey == b.HashKey && currTTEntry.Depth >= depth {
-
+		currEval := int(currTTEntry.Eval)
 		if currTTEntry.Flag == eval.Exact {
-			return currTTEntry.Eval
+			return currEval
 		}
-		if currTTEntry.Flag == eval.Alpha && currTTEntry.Eval <= alpha {
+		if currTTEntry.Flag == eval.Alpha && currEval <= alpha {
 			return alpha
 		}
-		if currTTEntry.Flag == eval.Beta && currTTEntry.Eval >= beta {
+		if currTTEntry.Flag == eval.Beta && currEval >= beta {
 			return beta
 		}
 	}
@@ -107,15 +107,19 @@ func alphaBetaSearch(b *board.Board, ply int, depth int, alpha int, beta int, tt
 
 	if len(moves) == 0 {
 		if checkers > 0 {
-			return -100000 + ply
+			return -30000 + ply
 		} else {
 			return 0
 		}
 	}
 
+	if checkFiftyMoveRule(b) || checkRepetition(b) {
+		return 0
+	}
+
 	moves = OrderMoves(b, moves, tt)
 
-	var bestEval int = -100000
+	var bestEval int = -30000
 	var bestMove board.Move
 	var flag eval.HashFlag = eval.Alpha
 	for _, m := range moves {
@@ -138,6 +142,7 @@ func alphaBetaSearch(b *board.Board, ply int, depth int, alpha int, beta int, tt
 
 		if score > bestEval {
 			bestEval = score
+			bestMove = m
 		}
 
 		if score >= beta {
@@ -154,11 +159,12 @@ func alphaBetaSearch(b *board.Board, ply int, depth int, alpha int, beta int, tt
 		}
 	}
 
-	if currTTEntry.HashKey == 0 || currTTEntry.Depth < depth {
+	if currTTEntry.HashKey != b.HashKey || currTTEntry.Depth < depth {
+
 		newTTEntry := eval.TTEntry{
 			HashKey:  b.HashKey,
 			Depth:    depth,
-			Eval:     bestEval,
+			Eval:     int16(bestEval),
 			Flag:     flag,
 			BestMove: bestMove,
 		}
@@ -170,8 +176,9 @@ func alphaBetaSearch(b *board.Board, ply int, depth int, alpha int, beta int, tt
 }
 
 // quiescenceSearch recursively searches a position until there are no more captures
-func quiescenceSearch(b *board.Board, ply int, alpha int, beta int, nodes *int) int {
+func quiescenceSearch(b *board.Board, ply int, alpha int, beta int, tt *eval.TranspositionTable, nodes *int) int {
 	var staticEval int = eval.Evaluate(b)
+	var originalAlpha int = alpha
 
 	bestEval := staticEval
 	if bestEval >= beta {
@@ -186,17 +193,30 @@ func quiescenceSearch(b *board.Board, ply int, alpha int, beta int, nodes *int) 
 	moves, checkers := b.GenerateLegalMoves()
 	if len(moves) == 0 {
 		if checkers > 0 {
-			return -100000 + ply
+			return -30000 + ply
 		} else {
 			return 0
 		}
 	}
-	captures := GetCaptures(moves)
-	for _, m := range captures {
+	sharpMoves := GetAndOrderSharpMoves(b, moves, tt)
+	for _, m := range sharpMoves {
 		*nodes++
 
+		// delta pruning
+		var moveValue int
+		if m.IsCapture() {
+			moveValue = eval.GetPieceValue(b.GetPiece(m.GetTo()))
+		}
+		if m.IsPromotion() {
+			moveValue += eval.GetPieceValue(board.W_Queen) - eval.GetPieceValue(board.W_Pawn)
+		}
+		// 200 point buffer for positional considerations
+		if originalAlpha > -29000 && staticEval+moveValue+200 < originalAlpha {
+			continue
+		}
+
 		unMove := b.MakeMove(m)
-		score := -quiescenceSearch(b, ply, -beta, -alpha, nodes)
+		score := -quiescenceSearch(b, ply, -beta, -alpha, tt, nodes)
 		b.UnMakeMove(m, unMove)
 
 		if score >= beta {
@@ -213,4 +233,31 @@ func quiescenceSearch(b *board.Board, ply int, alpha int, beta int, nodes *int) 
 	}
 
 	return bestEval
+}
+
+// checkFiftyMoveRule checks if the current board position triggers the fifty move rule
+func checkFiftyMoveRule(b *board.Board) bool {
+	if b.HalfMoveClock >= 100 {
+		return true
+	}
+	return false
+}
+
+// checkRepetition checks if the current board position has already happened in the game history
+func checkRepetition(b *board.Board) bool {
+	if b.HalfMoveClock < 2 {
+		return false
+	}
+
+	limit := len(b.History) - b.HalfMoveClock
+	if limit < 0 {
+		limit = 0
+	}
+
+	for i := len(b.History) - 2; i >= limit; i-- {
+		if b.History[i] == b.HashKey {
+			return true
+		}
+	}
+	return false
 }

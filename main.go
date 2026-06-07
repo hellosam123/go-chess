@@ -14,7 +14,7 @@ import (
 func main() {
 	fmt.Println("A Golang chess engine")
 
-	var globalTT *eval.TranspositionTable = eval.NewTranspositionTable(64)
+	var globalTT *eval.TranspositionTable = eval.NewTranspositionTable(32)
 
 	gameBoard := board.NewStartingBoard()
 	scanner := bufio.NewScanner(os.Stdin)
@@ -36,7 +36,7 @@ func main() {
 			fmt.Println("readyok")
 		case "ucinewgame":
 			gameBoard.ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
-			globalTT = eval.NewTranspositionTable(64)
+			globalTT = eval.NewTranspositionTable(32)
 		case "position":
 			err := uci.HandlePosition(gameBoard, tokens[1:])
 			if err != nil {
@@ -49,6 +49,8 @@ func main() {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
 				os.Exit(1)
 			}
+		case "print":
+			gameBoard.PrintBoard()
 		case "exit":
 			return
 		}

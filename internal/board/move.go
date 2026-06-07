@@ -8,10 +8,11 @@ type Move uint16
 type Flag uint16
 
 type UnMove struct {
-	enPassantSquare int
-	castlingRights  byte
-	capturedPiece   Piece
 	hashKey         uint64
+	enPassantSquare int
+	HalfMoveClock   int
+	capturedPiece   Piece
+	castlingRights  byte
 }
 
 // bitmasks to extract data from Move object
@@ -39,38 +40,38 @@ const (
 	PromoteCaptureQ Flag = 15 << 12
 )
 
-// create a new Move stored in uint16 format
+// New creates a new Move stored in uint16 format
 func New(from int, to int, flag Flag) Move {
 
 	return Move(uint16(from) | uint16(to)<<6 | uint16(flag))
 }
 
-// return the starting square as an int (0-63)
+// GetFrom returns the starting square as an int (0-63)
 func (m Move) GetFrom() int {
 	return int(uint16(m) & FromMask)
 }
 
-// return the ending square as an int (0-63)
+// GetTo returns the ending square as an int (0-63)
 func (m Move) GetTo() int {
 	return int((uint16(m) & ToMask) >> 6)
 }
 
-// return the flag as a Flag (uint16)
+// GetFlag returns the flag as a Flag (uint16)
 func (m Move) GetFlag() Flag {
 	return Flag(uint16(m) & FlagMask)
 }
 
-// return if the move is a capture
+// IsCapture returns if the move is a capture
 func (m Move) IsCapture() bool {
 	return uint16(m)&(4<<12) != 0
 }
 
-// return if the move is a promotion
+// IsPromotion returns if the move is a promotion
 func (m Move) IsPromotion() bool {
 	return uint16(m)&(8<<12) != 0
 }
 
-// return a Move formatted as a string in long algebraic notation (e.g. e2e4, a7a8q)
+// MoveToString returns a Move formatted as a string in long algebraic notation (e.g. e2e4, a7a8q)
 func (m Move) MoveToString() string {
 	fromStr := squares.IndexToSquareArray[m.GetFrom()]
 	toStr := squares.IndexToSquareArray[m.GetTo()]
@@ -92,7 +93,7 @@ func (m Move) MoveToString() string {
 	return fromStr + toStr + promotionStr
 }
 
-// takes a Move input and updates the board state
+// MakeMove takes a Move input and updates the board state
 func (b *Board) MakeMove(m Move) UnMove {
 	unMove := UnMove{
 		enPassantSquare: b.EnPassantSquare,
@@ -235,10 +236,20 @@ func (b *Board) MakeMove(m Move) UnMove {
 		b.HashKey ^= EnPassantTable[b.EnPassantSquare%8]
 	}
 	b.SetGeneralBitboards()
+	b.History = append(b.History, b.HashKey)
+
+	unMove.HalfMoveClock = b.HalfMoveClock
+
+	if fromPiece == W_Pawn || fromPiece == B_Pawn || m.IsCapture() {
+		b.HalfMoveClock = 0
+	} else {
+		b.HalfMoveClock++
+	}
 
 	return unMove
 }
 
+// unMakeMove is the inverse of MakeMove
 func (b *Board) UnMakeMove(m Move, unMove UnMove) {
 	from := m.GetFrom()
 	to := m.GetTo()
@@ -316,4 +327,6 @@ func (b *Board) UnMakeMove(m Move, unMove UnMove) {
 	b.CastlingRights = unMove.castlingRights
 	b.HashKey = unMove.hashKey
 	b.SetGeneralBitboards()
+	b.History = b.History[:len(b.History)-1]
+	b.HalfMoveClock = unMove.HalfMoveClock
 }
