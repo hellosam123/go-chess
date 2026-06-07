@@ -85,6 +85,10 @@ func alphaBetaSearch(b *board.Board, ply int, depth int8, alpha int, beta int, t
 		return 0
 	}
 
+	if checkFiftyMoveRule(b) || checkRepetition(b) {
+		return 0
+	}
+
 	ply++
 
 	TTIndex := b.HashKey & tt.Mask
@@ -111,10 +115,6 @@ func alphaBetaSearch(b *board.Board, ply int, depth int8, alpha int, beta int, t
 		} else {
 			return 0
 		}
-	}
-
-	if checkFiftyMoveRule(b) || checkRepetition(b) {
-		return 0
 	}
 
 	moves = OrderMoves(b, moves, tt)

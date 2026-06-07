@@ -143,6 +143,39 @@ var egKingTable = [64]int{
 	-53, -34, -21, -11, -28, -14, -24, -43,
 }
 
+var mgPassedPawnTable = [64]int{
+	0, 0, 0, 0, 0, 0, 0, 0,
+	0, 10, 20, 25, 25, 20, 10, 0,
+	0, 8, 15, 20, 20, 15, 8, 0,
+	0, 5, 10, 15, 15, 10, 5, 0,
+	0, 3, 7, 10, 10, 7, 3, 0,
+	0, 2, 4, 6, 6, 4, 2, 0,
+	0, 0, 1, 3, 3, 1, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0,
+}
+
+var egPassedPawnTable = [64]int{
+	0, 0, 0, 0, 0, 0, 0, 0,
+	55, 35, 0, 0, 0, 0, 35, 55,
+	40, 25, 0, 0, 0, 0, 25, 40,
+	25, 15, 0, 0, 0, 0, 15, 25,
+	15, 8, 0, 0, 0, 0, 8, 15,
+	8, 4, 0, 0, 0, 0, 4, 8,
+	4, 2, 0, 0, 0, 0, 2, 4,
+	0, 0, 0, 0, 0, 0, 0, 0,
+}
+
+var centerManhattanDistance = [64]int{
+	6, 5, 4, 3, 3, 4, 5, 6,
+	5, 4, 3, 2, 2, 3, 4, 5,
+	4, 3, 2, 1, 1, 2, 3, 4,
+	3, 2, 1, 0, 0, 1, 2, 3,
+	3, 2, 1, 0, 0, 1, 2, 3,
+	4, 3, 2, 1, 1, 2, 3, 4,
+	5, 4, 3, 2, 2, 3, 4, 5,
+	6, 5, 4, 3, 3, 4, 5, 6,
+}
+
 // Evaluate outputs a static score based on the evaluation of a position
 func Evaluate(b *board.Board) int {
 	var totalMGScore int
@@ -156,7 +189,7 @@ func Evaluate(b *board.Board) int {
 			continue
 		}
 
-		mgScore, egScore := GetPieceScore(piece, sq)
+		mgScore, egScore := GetPieceScore(b, piece, sq)
 		if piece < board.B_Pawn {
 			totalMGScore += mgScore
 			totalEGScore += egScore
@@ -167,6 +200,13 @@ func Evaluate(b *board.Board) int {
 	}
 
 	totalScore := interpolateScore(totalMGScore, totalEGScore, phase)
+	if phase <= 6 {
+		if totalScore > 300 {
+			totalScore += mopUpScore(b, board.W_King, board.B_King)
+		} else if totalScore < -300 {
+			totalScore -= mopUpScore(b, board.B_King, board.W_King)
+		}
+	}
 
 	if !b.ActiveColor {
 		totalScore = -totalScore
@@ -175,9 +215,23 @@ func Evaluate(b *board.Board) int {
 	return totalScore
 }
 
+// mopUpScore outputs a score incentivizing bringing the king closer to the opponents king during mopups
+func mopUpScore(b *board.Board, usKing board.Piece, themKing board.Piece) int {
+	var usKingSq int = bits.TrailingZeros64(b.Pieces[usKing])
+	var themKingSq int = bits.TrailingZeros64(b.Pieces[themKing])
+
+	// weights are arbitrary
+	cmdScore := centerManhattanDistance[themKingSq] * 10
+
+	// 14 is maximum MD between two kings
+	mdScore := (14 - getManhattanDistance(usKingSq, themKingSq)) * 4
+
+	return cmdScore + mdScore
+}
+
 // GetPieceScore takes the position of a piece and outputs a middlegame
 // and endgame score based on PeSTO piece square tables
-func GetPieceScore(p board.Piece, sq int) (int, int) {
+func GetPieceScore(b *board.Board, p board.Piece, sq int) (int, int) {
 	var mgScore int
 	var egScore int
 	var sqIndex int = sq
@@ -189,8 +243,7 @@ func GetPieceScore(p board.Piece, sq int) (int, int) {
 
 	switch p {
 	case board.W_Pawn, board.B_Pawn:
-		mgScore = mgValue[0] + mgPawnTable[sqIndex]
-		egScore = egValue[0] + egPawnTable[sqIndex]
+		mgScore, egScore = GetPawnScore(b, p, sq)
 	case board.W_Knight, board.B_Knight:
 		mgScore = mgValue[1] + mgKnightTable[sqIndex]
 		egScore = egValue[1] + egKnightTable[sqIndex]
@@ -208,6 +261,70 @@ func GetPieceScore(p board.Piece, sq int) (int, int) {
 		egScore = egKingTable[sqIndex]
 	default:
 		return 0, 0
+	}
+
+	return mgScore, egScore
+}
+
+func GetPawnScore(b *board.Board, p board.Piece, sq int) (int, int) {
+	var mgScore int
+	var egScore int
+	var sqIndex = sq
+
+	if p == board.W_Pawn {
+		sqIndex = flipSquare(sqIndex)
+	}
+
+	mgScore = mgValue[0] + mgPawnTable[sqIndex]
+	egScore = egValue[0] + egPawnTable[sqIndex]
+
+	var isIsolated bool
+	var isDoubled bool
+
+	switch p {
+	case board.W_Pawn:
+		if isPassedPawn(b, sq, true) {
+			mgScore += mgPassedPawnTable[sqIndex]
+			egScore += egPassedPawnTable[sqIndex]
+
+			wKingSq := bits.TrailingZeros64(b.Pieces[board.W_King])
+			bKingSq := bits.TrailingZeros64(b.Pieces[board.B_King])
+			egScore += (7 - getKingDistance(sq, wKingSq)) * 4
+			egScore += (getKingDistance(sq, bKingSq) - 1) * 3
+
+			// promotion square
+			egScore += (7 - getKingDistance(56+sq%8, wKingSq)) * 2
+		}
+
+		isIsolated = isIsolatedPawn(b, sq, true)
+		isDoubled = isDoubledPawn(b, sq, true)
+
+	case board.B_Pawn:
+		if isPassedPawn(b, sq, false) {
+			mgScore += mgPassedPawnTable[sqIndex]
+			egScore += egPassedPawnTable[sqIndex]
+
+			wKingSq := bits.TrailingZeros64(b.Pieces[board.W_King])
+			bKingSq := bits.TrailingZeros64(b.Pieces[board.B_King])
+			egScore += (7 - getKingDistance(sq, bKingSq)) * 4
+			egScore += (getKingDistance(sq, wKingSq) - 1) * 3
+			egScore += (7 - getKingDistance(sq%8, bKingSq)) * 2
+		}
+
+		isIsolated = isIsolatedPawn(b, sq, false)
+		isDoubled = isDoubledPawn(b, sq, false)
+	}
+
+	if isIsolated && isDoubled {
+		mgScore -= 20
+		egScore -= 15
+	} else if isIsolated {
+		mgScore -= 15
+		// for some reason an egScore penalty here reduces elo
+		egScore -= 0
+	} else if isDoubled {
+		mgScore -= 10
+		egScore -= 10
 	}
 
 	return mgScore, egScore
@@ -268,4 +385,38 @@ func interpolateScore(mgScore int, egScore int, phase int) int {
 	egPhase := 24 - phase
 
 	return (mgScore*int(phase) + egScore*int(egPhase)) / 24
+}
+
+func getManhattanDistance(sq1 int, sq2 int) int {
+	fDiff := (sq1 % 8) - (sq2 % 8)
+
+	// absolute value
+	if fDiff < 0 {
+		fDiff = -fDiff
+	}
+
+	rDiff := (sq1 / 8) - (sq2 / 8)
+	if rDiff < 0 {
+		rDiff = -rDiff
+	}
+
+	return fDiff + rDiff
+}
+
+func getKingDistance(sq1 int, sq2 int) int {
+	fDiff := (sq1 % 8) - (sq2 % 8)
+
+	if fDiff < 0 {
+		fDiff = -fDiff
+	}
+
+	rDiff := (sq1 / 8) - (sq2 / 8)
+	if rDiff < 0 {
+		rDiff = -rDiff
+	}
+
+	if fDiff > rDiff {
+		return fDiff
+	}
+	return rDiff
 }
