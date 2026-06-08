@@ -317,7 +317,7 @@ func GetPawnScore(b *board.Board, p board.Piece, sq int) (int, int) {
 
 	if isIsolated && isDoubled {
 		mgScore -= 20
-		egScore -= 15
+		egScore -= 20
 	} else if isIsolated {
 		mgScore -= 15
 		// for some reason an egScore penalty here reduces elo

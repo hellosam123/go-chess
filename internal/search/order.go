@@ -13,7 +13,7 @@ type scoredMove struct {
 }
 
 // OrderMoves orders a list of moves by making educated guesses at their scores
-func OrderMoves(b *board.Board, moves []board.Move, tt *eval.TranspositionTable) []board.Move {
+func OrderMoves(b *board.Board, moves []board.Move, ply int, tt *eval.TranspositionTable) []board.Move {
 	var scoredMoves []scoredMove = make([]scoredMove, len(moves))
 	var sortedMoves []board.Move = make([]board.Move, len(moves))
 
@@ -28,7 +28,7 @@ func OrderMoves(b *board.Board, moves []board.Move, tt *eval.TranspositionTable)
 
 	for i, m := range moves {
 		if m == ttBestMove {
-			scoredMoves[i] = scoredMove{move: m, score: 30000}
+			scoredMoves[i] = scoredMove{move: m, score: 50000}
 			continue
 		}
 
@@ -44,21 +44,32 @@ func OrderMoves(b *board.Board, moves []board.Move, tt *eval.TranspositionTable)
 			}
 		}
 
-		var capturedPiece board.Piece = board.Empty
-		var isCapture bool = false
+		if m.IsPromotion() {
+			moveScoreGuess = 20000
+		}
 
-		if toMask&b.AllPieces != 0 {
-			isCapture = true
+		if m.IsCapture() {
 			for p, pMask := range b.Pieces {
 				if toMask&pMask != 0 {
-					capturedPiece = board.Piece(p)
+					capturedPiece := board.Piece(p)
+					// adds score on top of promotion value
+					moveScoreGuess += 10000 + (eval.GetPieceValue(capturedPiece)*2 - eval.GetPieceValue(movePiece))
 					break
 				}
 			}
-		}
-
-		if isCapture {
-			moveScoreGuess = 10000 + (eval.GetPieceValue(capturedPiece)*10 - eval.GetPieceValue(movePiece))
+		} else {
+			switch m {
+			case KillerMoves[ply][0]:
+				moveScoreGuess = 9000
+			case KillerMoves[ply][1]:
+				moveScoreGuess = 8000
+			default:
+				side := 0
+				if !b.ActiveColor {
+					side = 1
+				}
+				moveScoreGuess = HistoryTable[side][m.GetFrom()][m.GetTo()]
+			}
 		}
 
 		scoredMoves[i] = scoredMove{move: m, score: moveScoreGuess}
@@ -76,12 +87,12 @@ func OrderMoves(b *board.Board, moves []board.Move, tt *eval.TranspositionTable)
 }
 
 // GetAndOrderSharpMoves takes a list of moves and filters for sharp moves and orders them
-func GetAndOrderSharpMoves(b *board.Board, moves []board.Move, tt *eval.TranspositionTable) []board.Move {
+func GetAndOrderSharpMoves(b *board.Board, moves []board.Move, ply int, tt *eval.TranspositionTable) []board.Move {
 	var sharpMoves []board.Move = make([]board.Move, 0, len(moves))
 	for _, m := range moves {
 		if m.IsCapture() || m.IsPromotion() {
 			sharpMoves = append(sharpMoves, m)
 		}
 	}
-	return OrderMoves(b, sharpMoves, tt)
+	return OrderMoves(b, sharpMoves, ply, tt)
 }

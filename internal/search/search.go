@@ -9,6 +9,15 @@ import (
 	eval "github.com/hellosam123/go-chess/internal/evaluation"
 )
 
+const MaxSearchPly = 20
+const MaxAbsolutePly = 64
+
+// KillerMoves stores the ply and 2 killer moves
+var KillerMoves [MaxAbsolutePly][2]board.Move
+
+// HistoryTable stores the number of times a certain move triggers beta
+var HistoryTable [2][64][64]int
+
 func RandomMove(b *board.Board) board.Move {
 	moves, _ := b.GenerateLegalMoves()
 	moveIndex := rand.IntN(len(moves))
@@ -21,6 +30,8 @@ func RootSearch(b *board.Board, searchTimeBudget time.Duration, tt *eval.Transpo
 	var searchTimeStart time.Time
 	var abort bool = false
 
+	clearSearchHeuristics()
+
 	moves, checkers := b.GenerateLegalMoves()
 
 	if len(moves) == 0 {
@@ -31,20 +42,20 @@ func RootSearch(b *board.Board, searchTimeBudget time.Duration, tt *eval.Transpo
 		}
 	}
 
-	moves = OrderMoves(b, moves, tt)
+	moves = OrderMoves(b, moves, 0, tt)
 
 	var finalBestEval int = -30000
-	var finalBestMove board.Move
+	var finalBestMove board.Move = moves[0]
 	searchTimeStart = time.Now()
 
 	var currentDepth int8
-	for currentDepth = 1; currentDepth < 20; currentDepth++ {
+	for currentDepth = 1; currentDepth <= MaxSearchPly; currentDepth++ {
 		if abort {
 			break
 		}
 
-		var alpha int = -30000
-		var beta int = 30000
+		var alpha int = -30001
+		var beta int = 30001
 		var bestMove board.Move
 
 		for _, m := range moves {
@@ -68,15 +79,15 @@ func RootSearch(b *board.Board, searchTimeBudget time.Duration, tt *eval.Transpo
 		}
 	}
 
-	if finalBestMove == 0 {
-		finalBestMove = moves[0]
-	}
-
 	return finalBestMove, finalBestEval, currentDepth, totalNodes, time.Duration(time.Since(searchTimeStart).Milliseconds())
 }
 
 // alphaBetaSearch recursively searches a position until a given depth, using alpha-beta pruning
 func alphaBetaSearch(b *board.Board, ply int, depth int8, alpha int, beta int, tt *eval.TranspositionTable, nodes *int, searchTimeBudget *time.Duration, searchTimeStart *time.Time, abort *bool) int {
+	if ply >= MaxAbsolutePly-1 {
+		return eval.Evaluate(b)
+	}
+
 	if depth <= 0 {
 		return quiescenceSearch(b, ply, alpha, beta, tt, nodes)
 	}
@@ -109,6 +120,38 @@ func alphaBetaSearch(b *board.Board, ply int, depth int8, alpha int, beta int, t
 
 	moves, checkers := b.GenerateLegalMoves()
 
+	// static null move pruning
+	if depth >= 3 && checkers == 0 {
+		margin := 120 * int(depth)
+		if eval.Evaluate(b)-margin >= beta {
+			return beta
+		}
+	}
+
+	// null move pruning
+	if depth >= 3 && checkers == 0 && hasNonPawnPieces(b, b.ActiveColor) {
+		b.ActiveColor = !b.ActiveColor
+		savedEnPassantSquare := b.EnPassantSquare
+		savedHashKey := b.HashKey
+
+		b.HashKey ^= board.ActiveColorMask
+		if b.EnPassantSquare != -1 {
+			b.HashKey ^= board.EnPassantTable[b.EnPassantSquare%8]
+			b.EnPassantSquare = -1
+		}
+
+		var reduction int8 = 2
+		nullScore := -alphaBetaSearch(b, ply, depth-1-reduction, -beta, -beta+1, tt, nodes, searchTimeBudget, searchTimeStart, abort)
+		b.ActiveColor = !b.ActiveColor
+
+		b.EnPassantSquare = savedEnPassantSquare
+		b.HashKey = savedHashKey
+
+		if nullScore >= beta {
+			return beta
+		}
+	}
+
 	if len(moves) == 0 {
 		if checkers > 0 {
 			return -30000 + ply
@@ -117,12 +160,12 @@ func alphaBetaSearch(b *board.Board, ply int, depth int8, alpha int, beta int, t
 		}
 	}
 
-	moves = OrderMoves(b, moves, tt)
+	moves = OrderMoves(b, moves, ply, tt)
 
-	var bestEval int = -30000
+	var bestEval int = -30001
 	var bestMove board.Move
 	var flag eval.HashFlag = eval.Alpha
-	for _, m := range moves {
+	for i, m := range moves {
 		*nodes++
 
 		if *nodes%2048 == 0 {
@@ -132,8 +175,22 @@ func alphaBetaSearch(b *board.Board, ply int, depth int8, alpha int, beta int, t
 			}
 		}
 
+		var score int
+
 		unMove := b.MakeMove(m)
-		score := -alphaBetaSearch(b, ply, depth-1, -beta, -alpha, tt, nodes, searchTimeBudget, searchTimeStart, abort)
+		// late move reduction
+		if depth >= 3 && i >= 3 && !m.IsCapture() && !m.IsPromotion() && checkers == 0 {
+			var lmrReduction int8 = 1
+			if depth > 4 {
+				lmrReduction = 2
+			}
+			score = -alphaBetaSearch(b, ply, depth-1-lmrReduction, -alpha-1, -alpha, tt, nodes, searchTimeBudget, searchTimeStart, abort)
+			if score > alpha && !*abort {
+				score = -alphaBetaSearch(b, ply, depth-1, -beta, -alpha, tt, nodes, searchTimeBudget, searchTimeStart, abort)
+			}
+		} else {
+			score = -alphaBetaSearch(b, ply, depth-1, -beta, -alpha, tt, nodes, searchTimeBudget, searchTimeStart, abort)
+		}
 		b.UnMakeMove(m, unMove)
 
 		if *abort {
@@ -146,6 +203,20 @@ func alphaBetaSearch(b *board.Board, ply int, depth int8, alpha int, beta int, t
 		}
 
 		if score >= beta {
+			if !m.IsCapture() {
+				if KillerMoves[ply][0] != m {
+					KillerMoves[ply][1] = KillerMoves[ply][0]
+					KillerMoves[ply][0] = m
+				}
+
+				side := 0
+				if !b.ActiveColor {
+					side = 1
+				}
+
+				HistoryTable[side][m.GetFrom()][m.GetTo()] += int(depth) * int(depth)
+			}
+
 			flag = eval.Beta
 			bestEval = score
 			bestMove = m
@@ -180,6 +251,10 @@ func quiescenceSearch(b *board.Board, ply int, alpha int, beta int, tt *eval.Tra
 	var staticEval int = eval.Evaluate(b)
 	var originalAlpha int = alpha
 
+	if ply >= MaxAbsolutePly-1 {
+		return staticEval
+	}
+
 	bestEval := staticEval
 	if bestEval >= beta {
 		return bestEval
@@ -198,7 +273,7 @@ func quiescenceSearch(b *board.Board, ply int, alpha int, beta int, tt *eval.Tra
 			return 0
 		}
 	}
-	sharpMoves := GetAndOrderSharpMoves(b, moves, tt)
+	sharpMoves := GetAndOrderSharpMoves(b, moves, ply, tt)
 	for _, m := range sharpMoves {
 		*nodes++
 
@@ -260,4 +335,26 @@ func checkRepetition(b *board.Board) bool {
 		}
 	}
 	return false
+}
+
+// hasNonPawnPieces checks if a side has non pawn pieces. Used for zugzwang detection.
+func hasNonPawnPieces(b *board.Board, color bool) bool {
+	if color {
+		return (b.Pieces[board.W_Pawn] | b.Pieces[board.W_King]) != b.AllPieces
+	}
+	return (b.Pieces[board.B_Pawn] | b.Pieces[board.B_King]) != b.AllPieces
+}
+
+// clearSearchHeuristics clears KillerMoves and divides all values in HistoryTable by 2.
+func clearSearchHeuristics() {
+	KillerMoves = [MaxAbsolutePly][2]board.Move{}
+
+	for side := 0; side < 2; side++ {
+		for from := 0; from < 64; from++ {
+			for to := 0; to < 64; to++ {
+				// age old search data
+				HistoryTable[side][from][to] /= 2
+			}
+		}
+	}
 }
