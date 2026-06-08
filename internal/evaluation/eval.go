@@ -283,7 +283,7 @@ func GetPawnScore(b *board.Board, p board.Piece, sq int) (int, int) {
 
 	switch p {
 	case board.W_Pawn:
-		if isPassedPawn(b, sq, true) {
+		if IsPassedPawn(b, sq, true) {
 			mgScore += mgPassedPawnTable[sqIndex]
 			egScore += egPassedPawnTable[sqIndex]
 
@@ -300,7 +300,7 @@ func GetPawnScore(b *board.Board, p board.Piece, sq int) (int, int) {
 		isDoubled = isDoubledPawn(b, sq, true)
 
 	case board.B_Pawn:
-		if isPassedPawn(b, sq, false) {
+		if IsPassedPawn(b, sq, false) {
 			mgScore += mgPassedPawnTable[sqIndex]
 			egScore += egPassedPawnTable[sqIndex]
 
@@ -369,6 +369,10 @@ func GetPieceValue(p board.Piece) int {
 	default:
 		return 0
 	}
+}
+
+func IsEndgame(b *board.Board) bool {
+	return CountPhase(b) <= 8
 }
 
 // flipSquare takes a square and reflects it vertically

@@ -49,7 +49,7 @@ func initPawnMasks() {
 	}
 }
 
-func isPassedPawn(b *board.Board, sq int, color bool) bool {
+func IsPassedPawn(b *board.Board, sq int, color bool) bool {
 	if color {
 		return pawnFrontSpanMasks[0][sq]&b.Pieces[board.B_Pawn] == 0 && pawnFrontMasks[0][sq]&b.Pieces[board.W_Pawn] == 0
 	}

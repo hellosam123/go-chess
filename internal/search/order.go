@@ -28,7 +28,7 @@ func OrderMoves(b *board.Board, moves []board.Move, ply int, tt *eval.Transposit
 
 	for i, m := range moves {
 		if m == ttBestMove {
-			scoredMoves[i] = scoredMove{move: m, score: 50000}
+			scoredMoves[i] = scoredMove{move: m, score: 100000}
 			continue
 		}
 
@@ -45,7 +45,7 @@ func OrderMoves(b *board.Board, moves []board.Move, ply int, tt *eval.Transposit
 		}
 
 		if m.IsPromotion() {
-			moveScoreGuess = 20000
+			moveScoreGuess = 50000
 		}
 
 		if m.IsCapture() {
@@ -53,22 +53,31 @@ func OrderMoves(b *board.Board, moves []board.Move, ply int, tt *eval.Transposit
 				if toMask&pMask != 0 {
 					capturedPiece := board.Piece(p)
 					// adds score on top of promotion value
-					moveScoreGuess += 10000 + (eval.GetPieceValue(capturedPiece)*2 - eval.GetPieceValue(movePiece))
+					moveScoreGuess += 30000 + (eval.GetPieceValue(capturedPiece)*2 - eval.GetPieceValue(movePiece))
 					break
 				}
 			}
 		} else {
 			switch m {
 			case KillerMoves[ply][0]:
-				moveScoreGuess = 9000
+				moveScoreGuess = 29000
 			case KillerMoves[ply][1]:
-				moveScoreGuess = 8000
+				moveScoreGuess = 28000
 			default:
-				side := 0
-				if !b.ActiveColor {
-					side = 1
+				if eval.IsEndgame(b) && (movePiece == board.W_Pawn || movePiece == board.B_Pawn) && eval.IsPassedPawn(b, m.GetFrom(), b.ActiveColor) {
+					targetRank := m.GetTo() / 8
+					if !b.ActiveColor {
+						targetRank = 7 - targetRank
+					}
+
+					moveScoreGuess = 25000 + targetRank*100
+				} else {
+					side := 0
+					if !b.ActiveColor {
+						side = 1
+					}
+					moveScoreGuess = HistoryTable[side][m.GetFrom()][m.GetTo()]
 				}
-				moveScoreGuess = HistoryTable[side][m.GetFrom()][m.GetTo()]
 			}
 		}
 

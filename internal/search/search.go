@@ -12,6 +12,8 @@ import (
 const MaxSearchPly = 20
 const MaxAbsolutePly = 64
 
+const checkmateThreshold = 29000
+
 // KillerMoves stores the ply and 2 killer moves
 var KillerMoves [MaxAbsolutePly][2]board.Move
 
@@ -49,6 +51,8 @@ func RootSearch(b *board.Board, searchTimeBudget time.Duration, tt *eval.Transpo
 	searchTimeStart = time.Now()
 
 	var currentDepth int8
+	var delta int = 40
+
 	for currentDepth = 1; currentDepth <= MaxSearchPly; currentDepth++ {
 		if abort {
 			break
@@ -56,34 +60,81 @@ func RootSearch(b *board.Board, searchTimeBudget time.Duration, tt *eval.Transpo
 
 		var alpha int = -30001
 		var beta int = 30001
+
+		if currentDepth >= 3 {
+			alpha = finalBestEval - delta
+			beta = finalBestEval + delta
+		}
+
 		var bestMove board.Move
 
-		for _, m := range moves {
-			unMove := b.MakeMove(m)
-			score := -alphaBetaSearch(b, 0, currentDepth-1, -beta, -alpha, tt, &totalNodes, &searchTimeBudget, &searchTimeStart, &abort)
-			b.UnMakeMove(m, unMove)
+		// aspiration windows
+		for {
+			if alpha < -30001 {
+				alpha = -30001
+			}
+			if beta > 30001 {
+				beta = 30001
+			}
+
+			for i, m := range moves {
+				unMove := b.MakeMove(m)
+
+				var score int
+
+				// principle variation search
+				if i == 0 {
+					score = -alphaBetaSearch(b, 0, currentDepth-1, -beta, -alpha, true, tt, &totalNodes, &searchTimeBudget, &searchTimeStart, &abort)
+				} else {
+					score = -alphaBetaSearch(b, 0, currentDepth-1, -alpha-1, -alpha, false, tt, &totalNodes, &searchTimeBudget, &searchTimeStart, &abort)
+
+					if score > alpha && !abort {
+						score = -alphaBetaSearch(b, 0, currentDepth-1, -beta, -alpha, true, tt, &totalNodes, &searchTimeBudget, &searchTimeStart, &abort)
+					}
+				}
+				b.UnMakeMove(m, unMove)
+
+				if abort {
+					break
+				}
+
+				if score > alpha {
+					alpha = score
+					bestMove = m
+				}
+			}
 
 			if abort {
 				break
 			}
 
-			if score > alpha {
-				alpha = score
-				bestMove = m
+			if alpha <= finalBestEval-delta {
+				alpha = finalBestEval - delta*2
+				beta = finalBestEval + delta
+				delta *= 2
+				continue
+			} else if alpha >= beta {
+				beta = finalBestEval + delta*2
+				delta *= 2
+				continue
 			}
+
+			break
 		}
 
 		if !abort {
 			finalBestEval = alpha
 			finalBestMove = bestMove
 		}
+
+		iterateHistoryHeuristics()
 	}
 
 	return finalBestMove, finalBestEval, currentDepth, totalNodes, time.Duration(time.Since(searchTimeStart).Milliseconds())
 }
 
 // alphaBetaSearch recursively searches a position until a given depth, using alpha-beta pruning
-func alphaBetaSearch(b *board.Board, ply int, depth int8, alpha int, beta int, tt *eval.TranspositionTable, nodes *int, searchTimeBudget *time.Duration, searchTimeStart *time.Time, abort *bool) int {
+func alphaBetaSearch(b *board.Board, ply int, depth int8, alpha int, beta int, isPV bool, tt *eval.TranspositionTable, nodes *int, searchTimeBudget *time.Duration, searchTimeStart *time.Time, abort *bool) int {
 	if ply >= MaxAbsolutePly-1 {
 		return eval.Evaluate(b)
 	}
@@ -106,7 +157,7 @@ func alphaBetaSearch(b *board.Board, ply int, depth int8, alpha int, beta int, t
 	currTTEntry := tt.Entries[TTIndex]
 
 	if currTTEntry.HashKey == b.HashKey && currTTEntry.Depth >= depth {
-		currEval := int(currTTEntry.Eval)
+		currEval := scoreFromTT(currTTEntry.Eval, ply)
 		if currTTEntry.Flag == eval.Exact {
 			return currEval
 		}
@@ -129,7 +180,7 @@ func alphaBetaSearch(b *board.Board, ply int, depth int8, alpha int, beta int, t
 	}
 
 	// null move pruning
-	if depth >= 3 && checkers == 0 && hasNonPawnPieces(b, b.ActiveColor) {
+	if depth >= 3 && !isPV && checkers == 0 && hasNonPawnPieces(b, b.ActiveColor) {
 		b.ActiveColor = !b.ActiveColor
 		savedEnPassantSquare := b.EnPassantSquare
 		savedHashKey := b.HashKey
@@ -141,7 +192,7 @@ func alphaBetaSearch(b *board.Board, ply int, depth int8, alpha int, beta int, t
 		}
 
 		var reduction int8 = 2
-		nullScore := -alphaBetaSearch(b, ply, depth-1-reduction, -beta, -beta+1, tt, nodes, searchTimeBudget, searchTimeStart, abort)
+		nullScore := -alphaBetaSearch(b, ply, depth-1-reduction, -beta, -beta+1, false, tt, nodes, searchTimeBudget, searchTimeStart, abort)
 		b.ActiveColor = !b.ActiveColor
 
 		b.EnPassantSquare = savedEnPassantSquare
@@ -176,20 +227,32 @@ func alphaBetaSearch(b *board.Board, ply int, depth int8, alpha int, beta int, t
 		}
 
 		var score int
-
 		unMove := b.MakeMove(m)
-		// late move reduction
-		if depth >= 3 && i >= 3 && !m.IsCapture() && !m.IsPromotion() && checkers == 0 {
-			var lmrReduction int8 = 1
-			if depth > 4 {
-				lmrReduction = 2
-			}
-			score = -alphaBetaSearch(b, ply, depth-1-lmrReduction, -alpha-1, -alpha, tt, nodes, searchTimeBudget, searchTimeStart, abort)
-			if score > alpha && !*abort {
-				score = -alphaBetaSearch(b, ply, depth-1, -beta, -alpha, tt, nodes, searchTimeBudget, searchTimeStart, abort)
-			}
+
+		// principle variation search
+		if i == 0 {
+			score = -alphaBetaSearch(b, ply, depth-1, -beta, -alpha, isPV, tt, nodes, searchTimeBudget, searchTimeStart, abort)
 		} else {
-			score = -alphaBetaSearch(b, ply, depth-1, -beta, -alpha, tt, nodes, searchTimeBudget, searchTimeStart, abort)
+			// late move reduction
+			if depth >= 3 && i >= 3 && !m.IsCapture() && !m.IsPromotion() && checkers == 0 {
+				var lmrReduction int8 = 1
+				if depth > 4 {
+					lmrReduction = 2
+				}
+				score = -alphaBetaSearch(b, ply, depth-1-lmrReduction, -alpha-1, -alpha, false, tt, nodes, searchTimeBudget, searchTimeStart, abort)
+			} else {
+				score = alpha + 1
+			}
+
+			// if lmr didn't run or lmr score above alpha
+			if score > alpha {
+				score = -alphaBetaSearch(b, ply, depth-1, -alpha-1, -alpha, false, tt, nodes, searchTimeBudget, searchTimeStart, abort)
+			}
+
+			if score > alpha && score < beta && !*abort {
+				// full width search
+				score = -alphaBetaSearch(b, ply, depth-1, -beta, -alpha, true, tt, nodes, searchTimeBudget, searchTimeStart, abort)
+			}
 		}
 		b.UnMakeMove(m, unMove)
 
@@ -214,7 +277,10 @@ func alphaBetaSearch(b *board.Board, ply int, depth int8, alpha int, beta int, t
 					side = 1
 				}
 
-				HistoryTable[side][m.GetFrom()][m.GetTo()] += int(depth) * int(depth)
+				// history bonus
+				if HistoryTable[side][m.GetFrom()][m.GetTo()] < 20000 {
+					HistoryTable[side][m.GetFrom()][m.GetTo()] += int(depth) * int(depth)
+				}
 			}
 
 			flag = eval.Beta
@@ -227,6 +293,18 @@ func alphaBetaSearch(b *board.Board, ply int, depth int8, alpha int, beta int, t
 			flag = eval.Exact
 			alpha = score
 			bestMove = m
+		} else {
+			// history malus
+			if !m.IsCapture() {
+				side := 0
+				if !b.ActiveColor {
+					side = 1
+				}
+
+				if HistoryTable[side][m.GetFrom()][m.GetTo()] > -20000 {
+					HistoryTable[side][m.GetFrom()][m.GetTo()] -= int(depth) * int(depth)
+				}
+			}
 		}
 	}
 
@@ -235,7 +313,7 @@ func alphaBetaSearch(b *board.Board, ply int, depth int8, alpha int, beta int, t
 		newTTEntry := eval.TTEntry{
 			HashKey:  b.HashKey,
 			Depth:    depth,
-			Eval:     int16(bestEval),
+			Eval:     scoreToTT(bestEval, ply),
 			Flag:     flag,
 			BestMove: bestMove,
 		}
@@ -357,4 +435,36 @@ func clearSearchHeuristics() {
 			}
 		}
 	}
+}
+
+// iterateHistoryHeuristics multiplies all values in HistoryTable by 4/5.
+func iterateHistoryHeuristics() {
+	for side := 0; side < 2; side++ {
+		for from := 0; from < 64; from++ {
+			for to := 0; to < 64; to++ {
+				// age old search data
+				HistoryTable[side][from][to] = HistoryTable[side][from][to] * 4 / 5
+			}
+		}
+	}
+}
+
+func scoreToTT(score int, ply int) int16 {
+	if score > checkmateThreshold {
+		return int16(score + ply)
+	}
+	if score < -checkmateThreshold {
+		return int16(score - ply)
+	}
+	return int16(score)
+}
+
+func scoreFromTT(score int16, ply int) int {
+	if score > checkmateThreshold {
+		return int(score) - ply
+	}
+	if score < -checkmateThreshold {
+		return int(score) + ply
+	}
+	return int(score)
 }
