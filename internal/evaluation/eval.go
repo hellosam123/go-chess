@@ -9,7 +9,6 @@ import (
 
 var mgValue = [6]int{82, 337, 365, 477, 1025, 0}
 var egValue = [6]int{94, 281, 297, 512, 936, 0}
-var phaseValue = [6]int{0, 1, 1, 2, 4, 0}
 
 var mgPawnTable = [64]int{
 	0, 0, 0, 0, 0, 0, 0, 0,
@@ -181,9 +180,11 @@ func Evaluate(b *board.Board) int {
 	var totalMGScore int
 	var totalEGScore int
 
-	phase := CountPhase(b)
+	allPieceMask := b.AllPieces
 
-	for sq := 0; sq < 64; sq++ {
+	for allPieceMask != 0 {
+		sq := bits.TrailingZeros64(allPieceMask)
+		allPieceMask &= allPieceMask - 1
 		piece := b.GetPiece(sq)
 		if piece == board.Empty {
 			continue
@@ -199,8 +200,8 @@ func Evaluate(b *board.Board) int {
 		}
 	}
 
-	totalScore := interpolateScore(totalMGScore, totalEGScore, phase)
-	if phase <= 6 {
+	totalScore := interpolateScore(totalMGScore, totalEGScore, b.PhaseValue)
+	if b.PhaseValue <= 6 {
 		if totalScore > 300 {
 			totalScore += mopUpScore(b, board.W_King, board.B_King)
 		} else if totalScore < -300 {
@@ -330,21 +331,6 @@ func GetPawnScore(b *board.Board, p board.Piece, sq int) (int, int) {
 	return mgScore, egScore
 }
 
-// CountPhase counts the phase of the game, with 1 point for B/N, 2 points for R, 4 points for Q
-func CountPhase(b *board.Board) int {
-	var phase int = 0
-	phase += bits.OnesCount64(b.Pieces[board.W_Knight]) * phaseValue[board.W_Knight/2]
-	phase += bits.OnesCount64(b.Pieces[board.W_Bishop]) * phaseValue[board.W_Bishop/2]
-	phase += bits.OnesCount64(b.Pieces[board.W_Rook]) * phaseValue[board.W_Rook/2]
-	phase += bits.OnesCount64(b.Pieces[board.W_Queen]) * phaseValue[board.W_Queen/2]
-	phase += bits.OnesCount64(b.Pieces[board.B_Knight]) * phaseValue[board.B_Knight/2]
-	phase += bits.OnesCount64(b.Pieces[board.B_Bishop]) * phaseValue[board.B_Bishop/2]
-	phase += bits.OnesCount64(b.Pieces[board.B_Rook]) * phaseValue[board.B_Rook/2]
-	phase += bits.OnesCount64(b.Pieces[board.B_Queen]) * phaseValue[board.B_Queen/2]
-
-	return phase
-}
-
 // GetPieceValue returns fixed material values for move ordering
 func GetPieceValue(p board.Piece) int {
 	const (
@@ -372,7 +358,7 @@ func GetPieceValue(p board.Piece) int {
 }
 
 func IsEndgame(b *board.Board) bool {
-	return CountPhase(b) <= 8
+	return b.PhaseValue <= 8
 }
 
 // flipSquare takes a square and reflects it vertically

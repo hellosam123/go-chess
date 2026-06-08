@@ -27,7 +27,7 @@ func RandomMove(b *board.Board) board.Move {
 }
 
 // RootSearch uses iterative deepening and initializes the alpha-beta search.
-func RootSearch(b *board.Board, searchTimeBudget time.Duration, tt *eval.TranspositionTable) (move board.Move, eval int, depth int8, nodes int, elapsed time.Duration) {
+func RootSearch(b *board.Board, searchTimeBudget time.Duration, tt *eval.TranspositionTable) (move board.Move, score int, depth int8, nodes int, elapsed time.Duration) {
 	var totalNodes int
 	var searchTimeStart time.Time
 	var abort bool = false
@@ -64,6 +64,10 @@ func RootSearch(b *board.Board, searchTimeBudget time.Duration, tt *eval.Transpo
 		if currentDepth >= 3 {
 			alpha = finalBestEval - delta
 			beta = finalBestEval + delta
+
+			if eval.IsEndgame(b) {
+				iterateEndgameHistoryHeuristics(b)
+			}
 		}
 
 		var bestMove board.Move
@@ -278,9 +282,10 @@ func alphaBetaSearch(b *board.Board, ply int, depth int8, alpha int, beta int, i
 				}
 
 				// history bonus
-				if HistoryTable[side][m.GetFrom()][m.GetTo()] < 20000 {
-					HistoryTable[side][m.GetFrom()][m.GetTo()] += int(depth) * int(depth)
-				}
+				maxHistory := 20000
+				bonus := int(depth) * int(depth)
+				currentScore := HistoryTable[side][m.GetFrom()][m.GetTo()]
+				HistoryTable[side][m.GetFrom()][m.GetTo()] += bonus - (bonus * currentScore / maxHistory)
 			}
 
 			flag = eval.Beta
@@ -444,6 +449,20 @@ func iterateHistoryHeuristics() {
 			for to := 0; to < 64; to++ {
 				// age old search data
 				HistoryTable[side][from][to] = HistoryTable[side][from][to] * 4 / 5
+			}
+		}
+	}
+}
+
+// iterateEndgameHistoryHeuristics multiples all values except for king moves by 1/2.
+func iterateEndgameHistoryHeuristics(b *board.Board) {
+	for side := 0; side < 2; side++ {
+		for from := 0; from < 64; from++ {
+			for to := 0; to < 64; to++ {
+
+				if b.GetPiece(from) != board.W_King || b.GetPiece(from) != board.B_King {
+					HistoryTable[side][from][to] = HistoryTable[side][from][to] * 1 / 2
+				}
 			}
 		}
 	}

@@ -145,6 +145,7 @@ func (b *Board) MakeMove(m Move) UnMove {
 	if m.IsCapture() && flag != EnPassant {
 		toPiece := b.GetPiece(to)
 		b.RemovePiece(toPiece, to)
+		b.PhaseValue -= b.GetPhaseValue(toPiece)
 		unMove.capturedPiece = toPiece
 	}
 
@@ -161,24 +162,28 @@ func (b *Board) MakeMove(m Move) UnMove {
 			} else {
 				b.PutPiece(B_Knight, to)
 			}
+			b.PhaseValue += 1
 		case PromoteB, PromoteCaptureB:
 			if b.ActiveColor {
 				b.PutPiece(W_Bishop, to)
 			} else {
 				b.PutPiece(B_Bishop, to)
 			}
+			b.PhaseValue += 1
 		case PromoteR, PromoteCaptureR:
 			if b.ActiveColor {
 				b.PutPiece(W_Rook, to)
 			} else {
 				b.PutPiece(B_Rook, to)
 			}
+			b.PhaseValue += 2
 		case PromoteQ, PromoteCaptureQ:
 			if b.ActiveColor {
 				b.PutPiece(W_Queen, to)
 			} else {
 				b.PutPiece(B_Queen, to)
 			}
+			b.PhaseValue += 4
 		}
 	}
 
@@ -289,24 +294,28 @@ func (b *Board) UnMakeMove(m Move, unMove UnMove) {
 			} else {
 				b.ClearPiece(B_Knight, to)
 			}
+			b.PhaseValue -= 1
 		case PromoteB, PromoteCaptureB:
 			if b.ActiveColor {
 				b.ClearPiece(W_Bishop, to)
 			} else {
 				b.ClearPiece(B_Bishop, to)
 			}
+			b.PhaseValue -= 1
 		case PromoteR, PromoteCaptureR:
 			if b.ActiveColor {
 				b.ClearPiece(W_Rook, to)
 			} else {
 				b.ClearPiece(B_Rook, to)
 			}
+			b.PhaseValue -= 2
 		case PromoteQ, PromoteCaptureQ:
 			if b.ActiveColor {
 				b.ClearPiece(W_Queen, to)
 			} else {
 				b.ClearPiece(B_Queen, to)
 			}
+			b.PhaseValue -= 4
 		}
 		if b.ActiveColor {
 			b.SetPiece(W_Pawn, from)
@@ -321,6 +330,7 @@ func (b *Board) UnMakeMove(m Move, unMove UnMove) {
 
 	if m.IsCapture() && flag != EnPassant {
 		b.SetPiece(unMove.capturedPiece, to)
+		b.PhaseValue += b.GetPhaseValue(unMove.capturedPiece)
 	}
 
 	b.EnPassantSquare = unMove.enPassantSquare

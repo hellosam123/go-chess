@@ -3,7 +3,10 @@
 // move representation, and move generation.
 package board
 
-import "fmt"
+import (
+	"fmt"
+	"math/bits"
+)
 
 type Piece int
 
@@ -37,6 +40,8 @@ var symbolToPieceMap = map[rune]Piece{
 	'p': B_Pawn, 'n': B_Knight, 'b': B_Bishop, 'r': B_Rook, 'q': B_Queen, 'k': B_King,
 }
 
+var phaseValueArray = [6]int{0, 1, 1, 2, 4, 0}
+
 type Board struct {
 	// an array of 12 bitboards, one for each piece.
 	// index 0-5 for White, 6-11 for Black.
@@ -59,6 +64,9 @@ type Board struct {
 
 	// checks for moves since last capture/pawn move
 	HalfMoveClock int
+
+	// checks the phase
+	PhaseValue int
 
 	// bits 0-3, where 0: BQ, 1: BK, 2: WQ, 3: WK
 	// in binary: 0000 WK-WQ-BK-BQ
@@ -110,6 +118,26 @@ func (b *Board) GetPiece(square int) Piece {
 	}
 
 	return Empty
+}
+
+// GetPhaseValue gets the phase value of a piece
+func (b *Board) GetPhaseValue(piece Piece) int {
+	return phaseValueArray[piece%6]
+}
+
+// CountPhase counts the phase of the game, with 1 point for B/N, 2 points for R, 4 points for Q
+func (b *Board) CountPhase() int {
+	var phase int = 0
+	phase += bits.OnesCount64(b.Pieces[W_Knight]) * phaseValueArray[W_Knight/2]
+	phase += bits.OnesCount64(b.Pieces[W_Bishop]) * phaseValueArray[W_Bishop/2]
+	phase += bits.OnesCount64(b.Pieces[W_Rook]) * phaseValueArray[W_Rook/2]
+	phase += bits.OnesCount64(b.Pieces[W_Queen]) * phaseValueArray[W_Queen/2]
+	phase += bits.OnesCount64(b.Pieces[B_Knight]) * phaseValueArray[B_Knight/2]
+	phase += bits.OnesCount64(b.Pieces[B_Bishop]) * phaseValueArray[B_Bishop/2]
+	phase += bits.OnesCount64(b.Pieces[B_Rook]) * phaseValueArray[B_Rook/2]
+	phase += bits.OnesCount64(b.Pieces[B_Queen]) * phaseValueArray[B_Queen/2]
+
+	return phase
 }
 
 // SetGeneralBitboards sets the bitboard values for WPieces, BPieces, and AllPieces
