@@ -2,6 +2,7 @@ package board
 
 import (
 	"fmt"
+	"math/bits"
 	"os"
 	"strings"
 )
@@ -11,6 +12,12 @@ type PRNG uint64
 var (
 	rookMasks   [64]uint64
 	bishopMasks [64]uint64
+
+	fullRookMasks   [64]uint64
+	fullBishopMasks [64]uint64
+
+	rookRayMasks   [64][64]uint64
+	bishopRayMasks [64][64]uint64
 
 	rookTable   [64][]uint64
 	bishopTable [64][]uint64
@@ -74,6 +81,10 @@ var bishopBitShifts = [64]int{
 	59, 59, 57, 57, 57, 57, 59, 59,
 	59, 59, 59, 59, 59, 59, 59, 59,
 	58, 59, 59, 59, 59, 59, 59, 58,
+}
+
+func init() {
+	InitTables()
 }
 
 func FindAllMagics() {
@@ -145,13 +156,35 @@ func GetMagicBishopAttacksMask(b *Board, from int) uint64 {
 	return bishopTable[from][tableIndex]
 }
 
-func initTables() {
+func InitTables() {
 	for sq := 0; sq < 64; sq++ {
 		rookMasks[sq] = generateRookMask(sq)
 		bishopMasks[sq] = generateBishopMask(sq)
 
+		fullRookMasks[sq] = generateFullRookMask(sq)
+		fullBishopMasks[sq] = generateFullBishopMask(sq)
+
+		rookRayMasks[sq] = generateRookRayMasks(sq)
+		bishopRayMasks[sq] = generateBishopRayMasks(sq)
+
 		rookTableSize := 1 << (64 - rookBitShifts[sq])
 		rookTable[sq] = make([]uint64, rookTableSize)
+
+		bishopTableSize := 1 << (64 - bishopBitShifts[sq])
+		bishopTable[sq] = make([]uint64, bishopTableSize)
+
+		rookBlockers := generateRookBlockers(sq)
+		bishopBlockers := generateBishopBlockers(sq)
+
+		for _, b := range rookBlockers {
+			tableIndex := (b * rookMagics[sq]) >> rookBitShifts[sq]
+			rookTable[sq][tableIndex] = generateRookAttacksMask(sq, b)
+		}
+
+		for _, b := range bishopBlockers {
+			tableIndex := (b * bishopMagics[sq]) >> bishopBitShifts[sq]
+			bishopTable[sq][tableIndex] = generateBishopAttacksMask(sq, b)
+		}
 	}
 }
 
@@ -212,6 +245,31 @@ func generateRookMask(sq int) uint64 {
 	return rookMask
 }
 
+func generateFullRookMask(sq int) uint64 {
+	rank := sq / 8
+	file := sq % 8
+
+	var rookMask uint64 = 0
+
+	for r := 0; r < 8; r++ {
+		if r == rank {
+			continue
+		}
+
+		rookMask |= 1 << (r*8 + file)
+	}
+
+	for f := 0; f < 8; f++ {
+		if f == file {
+			continue
+		}
+
+		rookMask |= 1 << (rank*8 + f)
+	}
+
+	return rookMask
+}
+
 func generateBishopMask(sq int) uint64 {
 	rank := sq / 8
 	file := sq % 8
@@ -228,6 +286,28 @@ func generateBishopMask(sq int) uint64 {
 		bishopMask |= 1 << (r*8 + f)
 	}
 	for r, f := rank+1, file-1; r < 7 && f > 0; r, f = r+1, f-1 {
+		bishopMask |= 1 << (r*8 + f)
+	}
+
+	return bishopMask
+}
+
+func generateFullBishopMask(sq int) uint64 {
+	rank := sq / 8
+	file := sq % 8
+
+	var bishopMask uint64 = 0
+
+	for r, f := rank+1, file+1; r < 8 && f < 8; r, f = r+1, f+1 {
+		bishopMask |= 1 << (r*8 + f)
+	}
+	for r, f := rank-1, file+1; r >= 0 && f < 8; r, f = r-1, f+1 {
+		bishopMask |= 1 << (r*8 + f)
+	}
+	for r, f := rank-1, file-1; r >= 0 && f >= 0; r, f = r-1, f-1 {
+		bishopMask |= 1 << (r*8 + f)
+	}
+	for r, f := rank+1, file-1; r < 8 && f >= 0; r, f = r+1, f-1 {
 		bishopMask |= 1 << (r*8 + f)
 	}
 
@@ -408,4 +488,78 @@ func generateBishopMagic(sq int) (uint64, int) {
 		}
 	}
 	return 0, 0
+}
+
+func generateRookRayMasks(sq int) [64]uint64 {
+	fullRookMask := fullRookMasks[sq]
+	var rayMasks [64]uint64
+	for fullRookMask != 0 {
+		to := bits.TrailingZeros64(fullRookMask)
+		fullRookMask &= fullRookMask - 1
+
+		var rayMask uint64
+
+		if sq%8 == to%8 {
+			if to > sq {
+				for i := sq + 8; i < to; i += 8 {
+					rayMask |= 1 << i
+				}
+			} else if to < sq {
+				for i := sq - 8; i > to; i -= 8 {
+					rayMask |= 1 << i
+				}
+			}
+		} else if sq/8 == to/8 {
+			if to > sq {
+				for i := sq + 1; i < to; i++ {
+					rayMask |= 1 << i
+				}
+			} else if to < sq {
+				for i := sq - 1; i > to; i-- {
+					rayMask |= 1 << i
+				}
+			}
+		}
+
+		rayMasks[to] = rayMask
+	}
+
+	return rayMasks
+}
+
+func generateBishopRayMasks(sq int) [64]uint64 {
+	fullBishopMask := fullBishopMasks[sq]
+	var rayMasks [64]uint64
+	for fullBishopMask != 0 {
+		to := bits.TrailingZeros64(fullBishopMask)
+		fullBishopMask &= fullBishopMask - 1
+
+		var rayMask uint64
+
+		if sq%9 == to%9 {
+			if to > sq {
+				for i := sq + 9; i < to; i += 9 {
+					rayMask |= 1 << i
+				}
+			} else if to < sq {
+				for i := sq - 9; i > to; i -= 9 {
+					rayMask |= 1 << i
+				}
+			}
+		} else if sq%7 == to%7 {
+			if to > sq {
+				for i := sq + 7; i < to; i += 7 {
+					rayMask |= 1 << i
+				}
+			} else if to < sq {
+				for i := sq - 7; i > to; i -= 7 {
+					rayMask |= 1 << i
+				}
+			}
+		}
+
+		rayMasks[to] = rayMask
+	}
+
+	return rayMasks
 }

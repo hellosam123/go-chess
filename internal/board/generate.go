@@ -1,6 +1,7 @@
 package board
 
 import (
+	"fmt"
 	"math/bits"
 
 	"github.com/hellosam123/go-chess/internal/squares"
@@ -34,8 +35,12 @@ func (b *Board) GenerateLegalMoves() ([]Move, int) {
 		kingSq = bits.TrailingZeros64(b.Pieces[B_King])
 	}
 
-	pinMasks := getPinMasks(b, kingSq)
-	checkMask, checkers := getCheckMask(b, kingSq)
+	if kingSq == 64 {
+		fmt.Printf("WTF??")
+		b.PrintBoard()
+	}
+
+	checkMask, pinMasks, checkers := getCheckAndPinMasks(b, kingSq)
 
 	generatePawnMoves(b, pinMasks, checkMask, checkers, &moves)
 	generateKnightMoves(b, pinMasks, checkMask, checkers, &moves)
@@ -315,12 +320,8 @@ func generateBishopMoves(b *Board, pinMasks [64]uint64, checkMask uint64, checke
 		from := bits.TrailingZeros64(bishops)
 		bishops &= bishops - 1
 
-		var attacks uint64
-
-		// cast a ray in all 4 directions
-		for _, step := range BishopDirections {
-			attacks |= generateDirectionalRayMask(from, step, us, them)
-		}
+		var attacks uint64 = GetMagicBishopAttacksMask(b, from)
+		attacks &^= us
 
 		if checkers == 1 {
 			attacks &= checkMask
@@ -367,12 +368,8 @@ func generateRookMoves(b *Board, pinMasks [64]uint64, checkMask uint64, checkers
 		from := bits.TrailingZeros64(rooks)
 		rooks &= rooks - 1
 
-		var attacks uint64
-
-		// cast a ray in all 4 directions
-		for _, step := range RookDirections {
-			attacks |= generateDirectionalRayMask(from, step, us, them)
-		}
+		var attacks uint64 = GetMagicRookAttacksMask(b, from)
+		attacks &^= us
 
 		if checkers == 1 {
 			attacks &= checkMask
@@ -418,12 +415,8 @@ func generateQueenMoves(b *Board, pinMasks [64]uint64, checkMask uint64, checker
 		from := bits.TrailingZeros64(queens)
 		queens &= queens - 1
 
-		var attacks uint64
-
-		// cast a ray in all 8 directions
-		for _, step := range QueenDirections {
-			attacks |= generateDirectionalRayMask(from, step, us, them)
-		}
+		var attacks uint64 = GetMagicRookAttacksMask(b, from) | GetMagicBishopAttacksMask(b, from)
+		attacks &^= us
 
 		if checkers == 1 {
 			attacks &= checkMask
@@ -611,92 +604,15 @@ func generateDirectionalRayMask(from int, step int, us uint64, them uint64) uint
 
 // getPinMasks returns an array of pin masks for each square, with each mask
 // including the squares between the king (exclusive) and the pinner (inclusive)
-func getPinMasks(b *Board, kingSq int) [64]uint64 {
-	var pinMasks [64]uint64
-	var us uint64
-	var themBishops uint64
-	var themRooks uint64
-	var themQueens uint64
-
-	if b.ActiveColor {
-		us = b.WPieces
-		themBishops = b.Pieces[B_Bishop]
-		themRooks = b.Pieces[B_Rook]
-		themQueens = b.Pieces[B_Queen]
-	} else {
-		us = b.BPieces
-		themBishops = b.Pieces[W_Bishop]
-		themRooks = b.Pieces[W_Rook]
-		themQueens = b.Pieces[W_Queen]
-	}
-
-	var allDirections = [8]int{8, 9, 1, -7, -8, -9, -1, 7}
-
-	for _, step := range allDirections {
-		currentSq := kingSq
-		var rayMask uint64 = 0
-		var friendlyPieceCount = 0
-		var pinnedSq int
-		var validSliders uint64
-
-		if step == 8 || step == 1 || step == -8 || step == -1 {
-			validSliders = themRooks | themQueens
-		} else {
-			validSliders = themBishops | themQueens
-		}
-
-		for {
-			currentFile := currentSq % 8
-
-			currentSq += step
-
-			if currentSq < 0 || currentSq > 63 {
-				break
-			}
-
-			newFile := currentSq % 8
-			if step == 1 || step == 9 || step == -7 {
-				if newFile <= currentFile {
-					break
-				}
-			}
-
-			if step == -1 || step == 7 || step == -9 {
-				if newFile >= currentFile {
-					break
-				}
-			}
-
-			var sqMask uint64 = 1 << currentSq
-			rayMask |= sqMask
-
-			if sqMask&us != 0 {
-				friendlyPieceCount++
-				if friendlyPieceCount == 1 {
-					pinnedSq = currentSq
-				} else {
-					break
-				}
-			} else if sqMask&b.AllPieces != 0 {
-				if sqMask&validSliders != 0 {
-					if friendlyPieceCount == 1 {
-						pinMasks[pinnedSq] = rayMask
-					}
-					break
-				}
-				break
-			}
-		}
-	}
-	return pinMasks
-}
 
 // getCheckMask returns a mask of squares between the king (exclusive)
 // and pieces giving check (inclusive), as well as the number of checkers
-func getCheckMask(b *Board, kingSq int) (uint64, int) {
+func getCheckAndPinMasks(b *Board, kingSq int) (uint64, [64]uint64, int) {
 	var checkMask uint64 = 0
+	var pinMasks [64]uint64
 	var checkers int = 0
 
+	var usPieces uint64
 	var themPawns uint64
 	var themKnights uint64
 	var themBishops uint64
@@ -704,12 +620,14 @@ func getCheckMask(b *Board, kingSq int) (uint64, int) {
 	var themQueens uint64
 
 	if b.ActiveColor {
+		usPieces = b.WPieces
 		themPawns = b.Pieces[B_Pawn]
 		themKnights = b.Pieces[B_Knight]
 		themBishops = b.Pieces[B_Bishop]
 		themRooks = b.Pieces[B_Rook]
 		themQueens = b.Pieces[B_Queen]
 	} else {
+		usPieces = b.BPieces
 		themPawns = b.Pieces[W_Pawn]
 		themKnights = b.Pieces[W_Knight]
 		themBishops = b.Pieces[W_Bishop]
@@ -745,61 +663,117 @@ func getCheckMask(b *Board, kingSq int) (uint64, int) {
 	}
 
 	if checkers >= 2 {
-		return checkMask, checkers
+		return checkMask, pinMasks, checkers
 	}
 
-	var allDirections = [8]int{8, 9, 1, -7, -8, -9, -1, 7}
+	for themBishops != 0 {
+		bishopSq := bits.TrailingZeros64(themBishops)
+		themBishops &= themBishops - 1
 
-	for _, step := range allDirections {
-		currentSq := kingSq
-		var rayMask uint64 = 0
-		var validSliders uint64
-
-		if step == 8 || step == 1 || step == -8 || step == -1 {
-			validSliders = themRooks | themQueens
-		} else {
-			validSliders = themBishops | themQueens
+		if fullBishopMasks[kingSq]&(1<<bishopSq) == 0 {
+			continue
 		}
 
-		for {
-			currentFile := currentSq % 8
-
-			currentSq += step
-
-			if currentSq < 0 || currentSq > 63 {
-				break
-			}
-
-			newFile := currentSq % 8
-			if step == 1 || step == 9 || step == -7 {
-				if newFile <= currentFile {
-					break
-				}
-			}
-
-			if step == -1 || step == 7 || step == -9 {
-				if newFile >= currentFile {
-					break
-				}
-			}
-
-			var sqMask uint64 = 1 << currentSq
-			rayMask |= sqMask
-
-			if sqMask&b.AllPieces != 0 {
-				if sqMask&validSliders != 0 {
-					checkMask |= rayMask
-					checkers++
-				}
-				break
-			}
+		kingAttacks := GetMagicBishopAttacksMask(b, kingSq)
+		bishopAttacks := GetMagicBishopAttacksMask(b, bishopSq)
+		rayCheck := kingAttacks & (bishopAttacks | (1 << bishopSq))
+		ray := bishopRayMasks[kingSq][bishopSq]
+		if rayCheck == 0 {
+			continue
 		}
+		if ray&b.AllPieces != 0 {
+			rayPieces := ray & usPieces
+			if rayPieces != 0 {
+				if rayPieces&(rayPieces-1) == 0 {
+					pinMasks[bits.TrailingZeros64(rayPieces)] = ray | (1 << bishopSq)
+				}
+			}
+			continue
+		}
+		checkMask |= ray | (1 << bishopSq)
+		checkers++
+
 		if checkers >= 2 {
-			return checkMask, checkers
+			return checkMask, pinMasks, checkers
 		}
+
 	}
 
-	return checkMask, checkers
+	for themRooks != 0 {
+		rookSq := bits.TrailingZeros64(themRooks)
+		themRooks &= themRooks - 1
+
+		if fullRookMasks[kingSq]&(1<<rookSq) == 0 {
+			continue
+		}
+
+		kingAttacks := GetMagicRookAttacksMask(b, kingSq)
+		rookAttacks := GetMagicRookAttacksMask(b, rookSq)
+		rayCheck := kingAttacks & (rookAttacks | (1 << rookSq))
+		ray := rookRayMasks[kingSq][rookSq]
+		if rayCheck == 0 {
+			continue
+		}
+		if ray&b.AllPieces != 0 {
+			rayPieces := ray & usPieces
+			if rayPieces != 0 {
+				if rayPieces&(rayPieces-1) == 0 {
+					pinMasks[bits.TrailingZeros64(rayPieces)] = ray | (1 << rookSq)
+				}
+			}
+			continue
+		}
+		checkMask |= ray | (1 << rookSq)
+		checkers++
+
+		if checkers >= 2 {
+			return checkMask, pinMasks, checkers
+		}
+
+	}
+
+	for themQueens != 0 {
+		queenSq := bits.TrailingZeros64(themQueens)
+		themQueens &= themQueens - 1
+
+		var rayCheck, ray uint64
+		if fullRookMasks[kingSq]&(1<<queenSq) != 0 {
+			kingAttacks := GetMagicRookAttacksMask(b, kingSq)
+			rookAttacks := GetMagicRookAttacksMask(b, queenSq)
+			rayCheck = kingAttacks & (rookAttacks | (1 << queenSq))
+			ray = rookRayMasks[kingSq][queenSq]
+		} else if fullBishopMasks[kingSq]&(1<<queenSq) != 0 {
+			kingAttacks := GetMagicBishopAttacksMask(b, kingSq)
+			bishopAttacks := GetMagicBishopAttacksMask(b, queenSq)
+			rayCheck = kingAttacks & (bishopAttacks | (1 << queenSq))
+			ray = bishopRayMasks[kingSq][queenSq]
+		} else {
+			continue
+		}
+
+		if rayCheck == 0 {
+			continue
+		}
+
+		if ray&b.AllPieces != 0 {
+			rayPieces := ray & usPieces
+			if rayPieces != 0 {
+				if rayPieces&(rayPieces-1) == 0 {
+					pinMasks[bits.TrailingZeros64(rayPieces)] = ray | (1 << queenSq)
+				}
+			}
+			continue
+		}
+		checkMask |= ray | (1 << queenSq)
+		checkers++
+
+		if checkers >= 2 {
+			return checkMask, pinMasks, checkers
+		}
+
+	}
+
+	return checkMask, pinMasks, checkers
 }
 
 // verifyHorizontalEPPin verifies that an en passant does not put the king in check
