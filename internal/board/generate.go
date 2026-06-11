@@ -7,11 +7,8 @@ import (
 	"github.com/hellosam123/go-chess/internal/squares"
 )
 
-var knightAttacks [64]uint64
-var kingAttacks [64]uint64
-var RookDirections = [4]int{8, 1, -8, -1}
-var BishopDirections = [4]int{9, -7, -9, 7}
-var QueenDirections = [8]int{8, 9, 1, -7, -8, -9, -1, 7}
+var KnightAttacks [64]uint64
+var KingAttacks [64]uint64
 
 const WhiteKingsideClearMask = (1 << squares.F1) | (1 << squares.G1)
 const WhiteQueensideClearMask = (1 << squares.B1) | (1 << squares.C1) | (1 << squares.D1)
@@ -277,7 +274,7 @@ func generateKnightMoves(b *Board, pinMasks [64]uint64, checkMask uint64, checke
 			continue
 		}
 
-		attacks := knightAttacks[from]
+		attacks := KnightAttacks[from]
 		if checkers == 1 {
 			attacks &= checkMask
 		}
@@ -320,7 +317,7 @@ func generateBishopMoves(b *Board, pinMasks [64]uint64, checkMask uint64, checke
 		from := bits.TrailingZeros64(bishops)
 		bishops &= bishops - 1
 
-		var attacks uint64 = GetMagicBishopAttacksMask(b, from)
+		var attacks uint64 = GetMagicBishopAttacksMask(b.AllPieces, from)
 		attacks &^= us
 
 		if checkers == 1 {
@@ -368,7 +365,7 @@ func generateRookMoves(b *Board, pinMasks [64]uint64, checkMask uint64, checkers
 		from := bits.TrailingZeros64(rooks)
 		rooks &= rooks - 1
 
-		var attacks uint64 = GetMagicRookAttacksMask(b, from)
+		var attacks uint64 = GetMagicRookAttacksMask(b.AllPieces, from)
 		attacks &^= us
 
 		if checkers == 1 {
@@ -415,7 +412,7 @@ func generateQueenMoves(b *Board, pinMasks [64]uint64, checkMask uint64, checker
 		from := bits.TrailingZeros64(queens)
 		queens &= queens - 1
 
-		var attacks uint64 = GetMagicRookAttacksMask(b, from) | GetMagicBishopAttacksMask(b, from)
+		var attacks uint64 = GetMagicRookAttacksMask(b.AllPieces, from) | GetMagicBishopAttacksMask(b.AllPieces, from)
 		attacks &^= us
 
 		if checkers == 1 {
@@ -457,7 +454,7 @@ func generateKingMoves(b *Board, checkers int, moves *[]Move) {
 
 	from := bits.TrailingZeros64(king)
 
-	attacks := kingAttacks[from]
+	attacks := KingAttacks[from]
 	attacks &^= us
 
 	for attacks != 0 {
@@ -513,7 +510,7 @@ func generateKingMoves(b *Board, checkers int, moves *[]Move) {
 }
 
 // precalculateKnightAttacks calculates all knight attacks for each
-// square and saves it in knightAttacks as an array of bitboards
+// square and saves it in KnightAttacks as an array of bitboards
 func precalculateKnightAttacks() {
 	// offsets in squares clockwise from North
 	rankOffsets := []int{2, 1, -1, -2, -2, -1, 1, 2}
@@ -533,12 +530,12 @@ func precalculateKnightAttacks() {
 				attacks |= 1 << attackSq
 			}
 		}
-		knightAttacks[sq] = attacks
+		KnightAttacks[sq] = attacks
 	}
 }
 
 // precalculateKingAttacks calculates all king attacks for each
-// square and saves it in kingAttacks as an array of bitboards
+// square and saves it in KingAttacks as an array of bitboards
 func precalculateKingAttacks() {
 	// offsets in squares clockwise from North
 	rankOffsets := []int{1, 1, 0, -1, -1, -1, 0, 1}
@@ -558,55 +555,14 @@ func precalculateKingAttacks() {
 				attacks |= 1 << attackSq
 			}
 		}
-		kingAttacks[sq] = attacks
+		KingAttacks[sq] = attacks
 	}
 }
 
-// generateDirectionalRayMask creates a ray by taking an initial position and
-// repeatedly incrementing by a step until a collision, returning a mask
-func generateDirectionalRayMask(from int, step int, us uint64, them uint64) uint64 {
-	var rayMask uint64 = 0
-	currentSq := from
-	for {
-		currentFile := currentSq % 8
-
-		currentSq += step
-
-		if currentSq < 0 || currentSq > 63 {
-			break
-		}
-
-		newFile := currentSq % 8
-		if step == 1 || step == 9 || step == -7 {
-			if newFile <= currentFile {
-				break
-			}
-		}
-
-		if step == -1 || step == 7 || step == -9 {
-			if newFile >= currentFile {
-				break
-			}
-		}
-
-		var sqMask uint64 = 1 << currentSq
-		if sqMask&us != 0 {
-			break
-		}
-		rayMask |= sqMask
-
-		if sqMask&them != 0 {
-			break
-		}
-	}
-	return rayMask
-}
-
-// getPinMasks returns an array of pin masks for each square, with each mask
-// including the squares between the king (exclusive) and the pinner (inclusive)
-
-// getCheckMask returns a mask of squares between the king (exclusive)
-// and pieces giving check (inclusive), as well as the number of checkers
+// getCheckAndPinMasks returns a mask of squares between the king (exclusive)
+// and pieces giving check (inclusive), an array of pin masks for each square,
+// with each mask including the squares between the king (exclusive) and the
+// pinner (inclusive), as well as the number of checkers
 func getCheckAndPinMasks(b *Board, kingSq int) (uint64, [64]uint64, int) {
 	var checkMask uint64 = 0
 	var pinMasks [64]uint64
@@ -656,7 +612,7 @@ func getCheckAndPinMasks(b *Board, kingSq int) (uint64, [64]uint64, int) {
 		}
 	}
 
-	kingKnightAttacks := knightAttacks[kingSq]
+	kingKnightAttacks := KnightAttacks[kingSq]
 	if kingKnightAttacks&themKnights != 0 {
 		checkMask |= kingKnightAttacks & themKnights
 		checkers++
@@ -666,6 +622,9 @@ func getCheckAndPinMasks(b *Board, kingSq int) (uint64, [64]uint64, int) {
 		return checkMask, pinMasks, checkers
 	}
 
+	kingBishopAttacks := GetMagicBishopAttacksMask(b.AllPieces, kingSq)
+	kingRookAttacks := GetMagicRookAttacksMask(b.AllPieces, kingSq)
+
 	for themBishops != 0 {
 		bishopSq := bits.TrailingZeros64(themBishops)
 		themBishops &= themBishops - 1
@@ -674,9 +633,8 @@ func getCheckAndPinMasks(b *Board, kingSq int) (uint64, [64]uint64, int) {
 			continue
 		}
 
-		kingAttacks := GetMagicBishopAttacksMask(b, kingSq)
-		bishopAttacks := GetMagicBishopAttacksMask(b, bishopSq)
-		rayCheck := kingAttacks & (bishopAttacks | (1 << bishopSq))
+		bishopAttacks := GetMagicBishopAttacksMask(b.AllPieces, bishopSq)
+		rayCheck := kingBishopAttacks & (bishopAttacks | (1 << bishopSq))
 		ray := bishopRayMasks[kingSq][bishopSq]
 		if rayCheck == 0 {
 			continue
@@ -707,9 +665,8 @@ func getCheckAndPinMasks(b *Board, kingSq int) (uint64, [64]uint64, int) {
 			continue
 		}
 
-		kingAttacks := GetMagicRookAttacksMask(b, kingSq)
-		rookAttacks := GetMagicRookAttacksMask(b, rookSq)
-		rayCheck := kingAttacks & (rookAttacks | (1 << rookSq))
+		rookAttacks := GetMagicRookAttacksMask(b.AllPieces, rookSq)
+		rayCheck := kingRookAttacks & (rookAttacks | (1 << rookSq))
 		ray := rookRayMasks[kingSq][rookSq]
 		if rayCheck == 0 {
 			continue
@@ -738,14 +695,12 @@ func getCheckAndPinMasks(b *Board, kingSq int) (uint64, [64]uint64, int) {
 
 		var rayCheck, ray uint64
 		if fullRookMasks[kingSq]&(1<<queenSq) != 0 {
-			kingAttacks := GetMagicRookAttacksMask(b, kingSq)
-			rookAttacks := GetMagicRookAttacksMask(b, queenSq)
-			rayCheck = kingAttacks & (rookAttacks | (1 << queenSq))
+			rookAttacks := GetMagicRookAttacksMask(b.AllPieces, queenSq)
+			rayCheck = kingRookAttacks & (rookAttacks | (1 << queenSq))
 			ray = rookRayMasks[kingSq][queenSq]
 		} else if fullBishopMasks[kingSq]&(1<<queenSq) != 0 {
-			kingAttacks := GetMagicBishopAttacksMask(b, kingSq)
-			bishopAttacks := GetMagicBishopAttacksMask(b, queenSq)
-			rayCheck = kingAttacks & (bishopAttacks | (1 << queenSq))
+			bishopAttacks := GetMagicBishopAttacksMask(b.AllPieces, queenSq)
+			rayCheck = kingBishopAttacks & (bishopAttacks | (1 << queenSq))
 			ray = bishopRayMasks[kingSq][queenSq]
 		} else {
 			continue
@@ -804,30 +759,8 @@ func verifyHorizontalEPPin(b *Board, from int, capturedPawnSq int) bool {
 		return true
 	}
 
-	currentSq := kingSq
-	// iterate on west side of king
-	for currentSq%8 > 0 {
-		currentSq--
-		var currentSqMask uint64 = 1 << currentSq
-		if currentSqMask&simMask != 0 {
-			if currentSqMask&themSliders != 0 {
-				return false
-			}
-			break
-		}
-	}
-
-	currentSq = kingSq
-	// iterate on east side of king
-	for currentSq%8 < 7 {
-		currentSq++
-		var currentSqMask uint64 = 1 << currentSq
-		if currentSqMask&simMask != 0 {
-			if currentSqMask&themSliders != 0 {
-				return false
-			}
-			break
-		}
+	if themSliders&GetMagicRookAttacksMask(simMask, kingSq) != 0 {
+		return false
 	}
 
 	return true
@@ -840,8 +773,7 @@ func isSquareAttacked(b *Board, square int, attackingColor bool, kingXray bool) 
 	var fileH uint64 = 0x8080808080808080
 	var sqMask uint64 = 1 << square
 
-	var us uint64
-	var them uint64
+	var occupancy uint64 = b.AllPieces
 
 	var attackingPawns uint64
 	var attackingKnights uint64
@@ -852,8 +784,6 @@ func isSquareAttacked(b *Board, square int, attackingColor bool, kingXray bool) 
 
 	// White is attacking, check if Black king can enter the square
 	if attackingColor {
-		us = b.BPieces &^ sqMask
-		them = b.WPieces &^ sqMask
 		attackingPawns = b.Pieces[W_Pawn]
 		attackingKnights = b.Pieces[W_Knight]
 		attackingBishops = b.Pieces[W_Bishop]
@@ -861,8 +791,6 @@ func isSquareAttacked(b *Board, square int, attackingColor bool, kingXray bool) 
 		attackingQueens = b.Pieces[W_Queen]
 		attackingKing = b.Pieces[W_King]
 	} else {
-		us = b.WPieces &^ sqMask
-		them = b.BPieces &^ sqMask
 		attackingPawns = b.Pieces[B_Pawn]
 		attackingKnights = b.Pieces[B_Knight]
 		attackingBishops = b.Pieces[B_Bishop]
@@ -871,11 +799,11 @@ func isSquareAttacked(b *Board, square int, attackingColor bool, kingXray bool) 
 		attackingKing = b.Pieces[B_King]
 	}
 
-	if knightAttacks[square]&attackingKnights != 0 {
+	if KnightAttacks[square]&attackingKnights != 0 {
 		return true
 	}
 
-	if kingAttacks[square]&attackingKing != 0 {
+	if KingAttacks[square]&attackingKing != 0 {
 		return true
 	}
 
@@ -889,7 +817,7 @@ func isSquareAttacked(b *Board, square int, attackingColor bool, kingXray bool) 
 		}
 
 		if kingXray {
-			us &^= b.Pieces[B_King]
+			occupancy &^= b.Pieces[B_King]
 		}
 	} else {
 		var pawnAttacks uint64
@@ -900,25 +828,17 @@ func isSquareAttacked(b *Board, square int, attackingColor bool, kingXray bool) 
 		}
 
 		if kingXray {
-			us &^= b.Pieces[W_King]
+			occupancy &^= b.Pieces[W_King]
 		}
 	}
 
-	var bishopAttacks uint64
-	// cast a ray in all 4 directions
-	for _, step := range BishopDirections {
-		bishopAttacks |= generateDirectionalRayMask(square, step, us, them)
-	}
+	bishopAttacks := GetMagicBishopAttacksMask(occupancy, square)
 
 	if bishopAttacks&(attackingBishops|attackingQueens) != 0 {
 		return true
 	}
 
-	var rookAttacks uint64
-	// cast a ray in all 4 directions
-	for _, step := range RookDirections {
-		rookAttacks |= generateDirectionalRayMask(square, step, us, them)
-	}
+	rookAttacks := GetMagicRookAttacksMask(occupancy, square)
 
 	if rookAttacks&(attackingRooks|attackingQueens) != 0 {
 		return true

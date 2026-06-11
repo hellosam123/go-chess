@@ -17,6 +17,7 @@ func TestSearch(t *testing.T) {
 
 func BenchmarkRandomMove(b *testing.B) {
 	gameBoard := board.NewStartingBoard()
+	gameBoard.ParseFEN("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -")
 	for i := 0; i < b.N; i++ {
 		RandomMove(gameBoard)
 	}

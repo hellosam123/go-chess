@@ -144,14 +144,14 @@ func FindAllMagics() {
 	fmt.Fprintln(file, "}")
 }
 
-func GetMagicRookAttacksMask(b *Board, from int) uint64 {
-	blockers := rookMasks[from] & b.AllPieces
+func GetMagicRookAttacksMask(occupancy uint64, from int) uint64 {
+	blockers := rookMasks[from] & occupancy
 	tableIndex := (blockers * rookMagics[from]) >> rookBitShifts[from]
 	return rookTable[from][tableIndex]
 }
 
-func GetMagicBishopAttacksMask(b *Board, from int) uint64 {
-	blockers := bishopMasks[from] & b.AllPieces
+func GetMagicBishopAttacksMask(occupancy uint64, from int) uint64 {
+	blockers := bishopMasks[from] & occupancy
 	tableIndex := (blockers * bishopMagics[from]) >> bishopBitShifts[from]
 	return bishopTable[from][tableIndex]
 }

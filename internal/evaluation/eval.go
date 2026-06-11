@@ -180,6 +180,10 @@ func Evaluate(b *board.Board) int {
 	var totalMGScore int
 	var totalEGScore int
 
+	attackMaps := GenerateAttackMaps(b)
+	totalMGScore += attackMaps.WMGTotalScore - attackMaps.BMGTotalScore
+	totalEGScore += attackMaps.WEGTotalScore - attackMaps.BEGTotalScore
+
 	allPieceMask := b.AllPieces
 
 	for allPieceMask != 0 {
@@ -279,12 +283,17 @@ func GetPawnScore(b *board.Board, p board.Piece, sq int) (int, int) {
 	mgScore = mgValue[0] + mgPawnTable[sqIndex]
 	egScore = egValue[0] + egPawnTable[sqIndex]
 
+	var isPassed bool
 	var isIsolated bool
 	var isDoubled bool
 
 	switch p {
 	case board.W_Pawn:
-		if IsPassedPawn(b, sq, true) {
+		isPassed = IsPassedPawn(b, sq, true)
+		isIsolated = isIsolatedPawn(b, sq, true)
+		isDoubled = isDoubledPawn(b, sq, true)
+
+		if isPassed {
 			mgScore += mgPassedPawnTable[sqIndex]
 			egScore += egPassedPawnTable[sqIndex]
 
@@ -297,11 +306,12 @@ func GetPawnScore(b *board.Board, p board.Piece, sq int) (int, int) {
 			egScore += (7 - getKingDistance(56+sq%8, wKingSq)) * 2
 		}
 
-		isIsolated = isIsolatedPawn(b, sq, true)
-		isDoubled = isDoubledPawn(b, sq, true)
-
 	case board.B_Pawn:
-		if IsPassedPawn(b, sq, false) {
+		isPassed = IsPassedPawn(b, sq, false)
+		isIsolated = isIsolatedPawn(b, sq, false)
+		isDoubled = isDoubledPawn(b, sq, false)
+
+		if isPassed {
 			mgScore += mgPassedPawnTable[sqIndex]
 			egScore += egPassedPawnTable[sqIndex]
 
@@ -312,8 +322,6 @@ func GetPawnScore(b *board.Board, p board.Piece, sq int) (int, int) {
 			egScore += (7 - getKingDistance(sq%8, bKingSq)) * 2
 		}
 
-		isIsolated = isIsolatedPawn(b, sq, false)
-		isDoubled = isDoubledPawn(b, sq, false)
 	}
 
 	if isIsolated && isDoubled {
@@ -322,7 +330,9 @@ func GetPawnScore(b *board.Board, p board.Piece, sq int) (int, int) {
 	} else if isIsolated {
 		mgScore -= 15
 		// for some reason an egScore penalty here reduces elo
-		egScore -= 0
+		if !isPassed {
+			egScore -= 10
+		}
 	} else if isDoubled {
 		mgScore -= 10
 		egScore -= 10

@@ -14,5 +14,5 @@ func TestInitTables(t *testing.T) {
 
 func TestGetMagicRookAttacksMask(t *testing.T) {
 	b := NewStartingBoard()
-	t.Logf("%#X", GetMagicRookAttacksMask(b, 16))
+	t.Logf("%#X", GetMagicRookAttacksMask(b.AllPieces, 16))
 }
