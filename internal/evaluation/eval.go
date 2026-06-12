@@ -420,3 +420,17 @@ func getKingDistance(sq1 int, sq2 int) int {
 	}
 	return rDiff
 }
+
+func staticExchangeEval(b *board.Board, sq int, color bool) int {
+	var gain [32]int
+	var depth int = 0
+	var mayXray uint64
+	var attackersMask uint64
+
+	if color {
+		mayXray = b.Pieces[board.W_Pawn] | b.Pieces[board.W_Bishop] | b.Pieces[board.W_Rook] | b.Pieces[board.W_Queen]
+	} else {
+		mayXray = b.Pieces[board.B_Pawn] | b.Pieces[board.B_Bishop] | b.Pieces[board.B_Rook] | b.Pieces[board.B_Queen]
+	}
+
+}
