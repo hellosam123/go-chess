@@ -143,6 +143,10 @@ func alphaBetaSearch(b *board.Board, ply int, depth int8, alpha int, beta int, i
 		return eval.Evaluate(b)
 	}
 
+	if depth <= 0 && b.InCheck() {
+		depth++
+	}
+
 	if depth <= 0 {
 		return quiescenceSearch(b, ply, alpha, beta, tt, nodes)
 	}

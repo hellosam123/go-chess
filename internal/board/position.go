@@ -8,6 +8,13 @@ func (b *Board) IsEndgame() bool {
 	return b.PhaseValue <= 8
 }
 
+func (b *Board) InCheck() bool {
+	if b.ActiveColor {
+		return isSquareAttacked(b, bits.TrailingZeros64(b.Pieces[W_King]), false, false)
+	}
+	return isSquareAttacked(b, bits.TrailingZeros64(b.Pieces[B_King]), true, false)
+}
+
 func GetManhattanDistance(sq1 int, sq2 int) int {
 	fDiff := (sq1 % 8) - (sq2 % 8)
 
