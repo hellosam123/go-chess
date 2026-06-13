@@ -65,7 +65,7 @@ func RootSearch(b *board.Board, searchTimeBudget time.Duration, tt *eval.Transpo
 			alpha = finalBestEval - delta
 			beta = finalBestEval + delta
 
-			if eval.IsEndgame(b) {
+			if b.IsEndgame() {
 				iterateEndgameHistoryHeuristics(b)
 			}
 		}
@@ -363,6 +363,12 @@ func quiescenceSearch(b *board.Board, ply int, alpha int, beta int, tt *eval.Tra
 		// delta pruning
 		var moveValue int
 		if m.IsCapture() {
+			// seems like SEE pruning loses elo here
+			// SEE pruning
+			// if eval.StaticExchangeEval(b, m.GetTo(), b.ActiveColor) < 0 {
+			// 	continue
+			// }
+
 			moveValue = eval.GetPieceValue(b.GetPiece(m.GetTo()))
 		}
 		if m.IsPromotion() {

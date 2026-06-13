@@ -229,7 +229,7 @@ func mopUpScore(b *board.Board, usKing board.Piece, themKing board.Piece) int {
 	cmdScore := centerManhattanDistance[themKingSq] * 10
 
 	// 14 is maximum MD between two kings
-	mdScore := (14 - getManhattanDistance(usKingSq, themKingSq)) * 4
+	mdScore := (14 - board.GetManhattanDistance(usKingSq, themKingSq)) * 4
 
 	return cmdScore + mdScore
 }
@@ -299,11 +299,11 @@ func GetPawnScore(b *board.Board, p board.Piece, sq int) (int, int) {
 
 			wKingSq := bits.TrailingZeros64(b.Pieces[board.W_King])
 			bKingSq := bits.TrailingZeros64(b.Pieces[board.B_King])
-			egScore += (7 - getKingDistance(sq, wKingSq)) * 4
-			egScore += (getKingDistance(sq, bKingSq) - 1) * 3
+			egScore += (7 - board.GetKingDistance(sq, wKingSq)) * 4
+			egScore += (board.GetKingDistance(sq, bKingSq) - 1) * 3
 
 			// promotion square
-			egScore += (7 - getKingDistance(56+sq%8, wKingSq)) * 2
+			egScore += (7 - board.GetKingDistance(56+sq%8, wKingSq)) * 2
 		}
 
 	case board.B_Pawn:
@@ -317,9 +317,9 @@ func GetPawnScore(b *board.Board, p board.Piece, sq int) (int, int) {
 
 			wKingSq := bits.TrailingZeros64(b.Pieces[board.W_King])
 			bKingSq := bits.TrailingZeros64(b.Pieces[board.B_King])
-			egScore += (7 - getKingDistance(sq, bKingSq)) * 4
-			egScore += (getKingDistance(sq, wKingSq) - 1) * 3
-			egScore += (7 - getKingDistance(sq%8, bKingSq)) * 2
+			egScore += (7 - board.GetKingDistance(sq, bKingSq)) * 4
+			egScore += (board.GetKingDistance(sq, wKingSq) - 1) * 3
+			egScore += (7 - board.GetKingDistance(sq%8, bKingSq)) * 2
 		}
 
 	}
@@ -367,10 +367,6 @@ func GetPieceValue(p board.Piece) int {
 	}
 }
 
-func IsEndgame(b *board.Board) bool {
-	return b.PhaseValue <= 8
-}
-
 // flipSquare takes a square and reflects it vertically
 func flipSquare(square int) int {
 	return square ^ 0b111000
@@ -387,50 +383,58 @@ func interpolateScore(mgScore int, egScore int, phase int) int {
 	return (mgScore*int(phase) + egScore*int(egPhase)) / 24
 }
 
-func getManhattanDistance(sq1 int, sq2 int) int {
-	fDiff := (sq1 % 8) - (sq2 % 8)
+func StaticExchangeEval(b *board.Board, sq int, color bool) int {
+	occupancy := b.AllPieces
+	attackersMask := board.GetAttackersMask(b, occupancy, sq, true) | board.GetAttackersMask(b, occupancy, sq, false)
 
-	// absolute value
-	if fDiff < 0 {
-		fDiff = -fDiff
-	}
-
-	rDiff := (sq1 / 8) - (sq2 / 8)
-	if rDiff < 0 {
-		rDiff = -rDiff
-	}
-
-	return fDiff + rDiff
-}
-
-func getKingDistance(sq1 int, sq2 int) int {
-	fDiff := (sq1 % 8) - (sq2 % 8)
-
-	if fDiff < 0 {
-		fDiff = -fDiff
-	}
-
-	rDiff := (sq1 / 8) - (sq2 / 8)
-	if rDiff < 0 {
-		rDiff = -rDiff
-	}
-
-	if fDiff > rDiff {
-		return fDiff
-	}
-	return rDiff
-}
-
-func staticExchangeEval(b *board.Board, sq int, color bool) int {
 	var gain [32]int
-	var depth int = 0
-	var mayXray uint64
-	var attackersMask uint64
+	var depth = 0
 
-	if color {
-		mayXray = b.Pieces[board.W_Pawn] | b.Pieces[board.W_Bishop] | b.Pieces[board.W_Rook] | b.Pieces[board.W_Queen]
-	} else {
-		mayXray = b.Pieces[board.B_Pawn] | b.Pieces[board.B_Bishop] | b.Pieces[board.B_Rook] | b.Pieces[board.B_Queen]
+	gain[0] = GetPieceValue(b.GetPiece(sq))
+	activeColor := color
+	for {
+		depth++
+
+		var usAttackersMask uint64
+		if activeColor {
+			usAttackersMask = attackersMask & b.WPieces
+		} else {
+			usAttackersMask = attackersMask & b.BPieces
+		}
+
+		if usAttackersMask == 0 {
+			break
+		}
+
+		attacker, attackerSq := board.GetSmallestAttacker(b, usAttackersMask, activeColor)
+		var attackerMask uint64 = 1 << attackerSq
+		occupancy &^= attackerMask
+		attackersMask &^= attackerMask
+
+		gain[depth] = GetPieceValue(attacker) - gain[depth-1]
+
+		if -gain[depth-1] > gain[depth] {
+			break
+		}
+
+		if board.IsSlider(attacker) {
+			attackersMask |= (board.GetAttackersMask(b, occupancy, sq, true) | board.GetAttackersMask(b, occupancy, sq, false)) & occupancy
+		}
+
+		activeColor = !activeColor
 	}
 
+	depth -= 2
+	for depth > 0 {
+		var max int
+		if -gain[depth-1] >= gain[depth] {
+			max = -gain[depth-1]
+		} else {
+			max = gain[depth]
+		}
+		gain[depth-1] = -max
+
+		depth--
+	}
+	return gain[0]
 }

@@ -16,8 +16,8 @@ const BlackKingsideClearMask = (1 << squares.F8) | (1 << squares.G8)
 const BlackQueensideClearMask = (1 << squares.B8) | (1 << squares.C8) | (1 << squares.D8)
 
 func init() {
-	precalculateKnightAttacks()
-	precalculateKingAttacks()
+	initKnightAttacks()
+	initKingAttacks()
 }
 
 // GenerateLegalMoves generates all legal moves in a board,
@@ -509,9 +509,9 @@ func generateKingMoves(b *Board, checkers int, moves *[]Move) {
 	}
 }
 
-// precalculateKnightAttacks calculates all knight attacks for each
+// initKnightAttacks calculates all knight attacks for each
 // square and saves it in KnightAttacks as an array of bitboards
-func precalculateKnightAttacks() {
+func initKnightAttacks() {
 	// offsets in squares clockwise from North
 	rankOffsets := []int{2, 1, -1, -2, -2, -1, 1, 2}
 	fileOffsets := []int{1, 2, 2, 1, -1, -2, -2, -1}
@@ -534,9 +534,9 @@ func precalculateKnightAttacks() {
 	}
 }
 
-// precalculateKingAttacks calculates all king attacks for each
+// initKingAttacks calculates all king attacks for each
 // square and saves it in KingAttacks as an array of bitboards
-func precalculateKingAttacks() {
+func initKingAttacks() {
 	// offsets in squares clockwise from North
 	rankOffsets := []int{1, 1, 0, -1, -1, -1, 0, 1}
 	fileOffsets := []int{0, 1, 1, 1, 0, -1, -1, -1}

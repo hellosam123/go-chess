@@ -48,7 +48,7 @@ type AttackMaps struct {
 }
 
 func init() {
-	precalculateKingAttackZones()
+	initKingAttackZones()
 }
 
 func GenerateAttackMaps(b *board.Board) AttackMaps {
@@ -228,26 +228,7 @@ func GenerateAttackMaps(b *board.Board) AttackMaps {
 	return attackMaps
 }
 
-func getSmallestAttacker(b *board.Board, square int, attackersMask uint64, color bool) (board.Piece, int) {
-	var startPiece board.Piece
-	var endPiece board.Piece
-
-	if color {
-		startPiece = board.W_Pawn
-		endPiece = board.W_King
-	} else {
-		startPiece = board.B_Pawn
-		endPiece = board.B_King
-	}
-	for p := startPiece; p <= endPiece; p++ {
-		if b.Pieces[p]&attackersMask != 0 {
-			return p, bits.TrailingZeros64(b.Pieces[p] & attackersMask)
-		}
-	}
-	return board.Empty, 0
-}
-
-func precalculateKingAttackZones() {
+func initKingAttackZones() {
 	for sq := 0; sq < 64; sq++ {
 		rank := sq / 8
 		file := sq % 8
