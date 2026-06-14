@@ -419,8 +419,14 @@ func StaticExchangeEval(b *board.Board, sq int, color bool) int {
 			break
 		}
 
-		if board.IsSlider(attacker) {
-			attackersMask |= (board.GetAttackersMask(b, occupancy, sq, true) | board.GetAttackersMask(b, occupancy, sq, false)) & occupancy
+		if attacker == board.W_Pawn || attacker == board.B_Pawn || board.IsBishopSlider(attacker) {
+			bishopSliders := (b.Pieces[board.W_Bishop] | b.Pieces[board.B_Bishop] | b.Pieces[board.W_Queen] | b.Pieces[board.B_Queen])
+			attackersMask |= board.GetMagicBishopAttacksMask(occupancy, sq) & bishopSliders & occupancy
+		}
+
+		if board.IsRookSlider(attacker) {
+			rookSliders := (b.Pieces[board.W_Rook] | b.Pieces[board.B_Rook] | b.Pieces[board.W_Queen] | b.Pieces[board.B_Queen])
+			attackersMask |= board.GetMagicRookAttacksMask(occupancy, sq) & rookSliders & occupancy
 		}
 
 		activeColor = !activeColor

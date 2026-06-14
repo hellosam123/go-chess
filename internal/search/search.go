@@ -230,11 +230,22 @@ func (s *Search) alphaBetaSearch(ply int, depth int8, alpha int, beta int, isPV 
 	}
 
 	moves, checkers := s.Board.GenerateLegalMoves()
+	staticEval := eval.Evaluate(s.Board)
+
+	// razoring
+	if depth == 1 && checkers == 0 && !isPV {
+		if staticEval+300 < alpha {
+			qScore := s.quiescenceSearch(ply, alpha, beta)
+			if qScore <= alpha {
+				return qScore
+			}
+		}
+	}
 
 	// static null move pruning
-	if depth >= 3 && checkers == 0 {
+	if depth <= 4 && checkers == 0 {
 		margin := 120 * int(depth)
-		if eval.Evaluate(s.Board)-margin >= beta {
+		if staticEval-margin >= beta {
 			return beta
 		}
 	}
@@ -288,6 +299,15 @@ func (s *Search) alphaBetaSearch(ply int, depth int8, alpha int, beta int, isPV 
 
 		if ply < MaxAbsolutePly-1 {
 			s.PVLength[ply+1] = 0
+		}
+
+		// futility pruning
+		if depth == 1 && i != 0 && checkers == 0 && !isPV {
+			if !m.IsCapture() && !m.IsPromotion() {
+				if staticEval+150 <= alpha {
+					continue
+				}
+			}
 		}
 
 		var score int

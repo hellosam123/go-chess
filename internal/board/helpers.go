@@ -134,7 +134,15 @@ func GetSmallestAttacker(b *Board, attackersMask uint64, color bool) (Piece, int
 }
 
 func IsSlider(piece Piece) bool {
-	return (piece >= W_Bishop && piece <= W_Queen) || (piece >= B_Bishop || piece <= B_Queen)
+	return (piece >= W_Bishop && piece <= W_Queen) || (piece >= B_Bishop && piece <= B_Queen)
+}
+
+func IsBishopSlider(piece Piece) bool {
+	return piece == W_Bishop || piece == W_Queen || piece == B_Bishop || piece == B_Queen
+}
+
+func IsRookSlider(piece Piece) bool {
+	return piece == W_Rook || piece == W_Queen || piece == B_Rook || piece == B_Queen
 }
 
 // CheckFiftyMoveRule checks if the current board position triggers the fifty move rule
@@ -147,7 +155,7 @@ func (b *Board) CheckFiftyMoveRule() bool {
 
 // CheckRepetition checks if the current board position has already happened in the game history
 func (b *Board) CheckRepetition() bool {
-	if b.HalfMoveClock < 2 {
+	if b.HalfMoveClock < 4 {
 		return false
 	}
 
@@ -156,7 +164,7 @@ func (b *Board) CheckRepetition() bool {
 		limit = 0
 	}
 
-	for i := len(b.History) - 2; i >= limit; i-- {
+	for i := len(b.History) - 2; i >= limit; i -= 2 {
 		if b.History[i] == b.HashKey {
 			return true
 		}
