@@ -11,7 +11,7 @@ import (
 func TestSearch(t *testing.T) {
 	e := engine.NewEngine(32)
 
-	time, _ := time.ParseDuration("1s")
+	time, _ := time.ParseDuration("1.000s")
 	s := NewSearch(e, time, false)
 	t.Log(s.RootSearch())
 }

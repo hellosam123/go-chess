@@ -1,21 +1,19 @@
 package search
 
 import (
-	"sort"
+	"slices"
 
 	"github.com/hellosam123/go-chess/internal/board"
 	eval "github.com/hellosam123/go-chess/internal/evaluation"
 )
 
-type scoredMove struct {
-	move  board.Move
-	score int
-}
-
 // OrderMoves orders a list of moves by making educated guesses at their scores
 func (s *Search) OrderMoves(moves []board.Move, ply int) []board.Move {
-	var scoredMoves []scoredMove = make([]scoredMove, len(moves))
-	var sortedMoves []board.Move = make([]board.Move, len(moves))
+	if len(moves) <= 1 {
+		return moves
+	}
+
+	scoredMoves := s.ScoredMoveBuffer[:len(moves)]
 
 	var ttBestMove board.Move
 
@@ -28,7 +26,7 @@ func (s *Search) OrderMoves(moves []board.Move, ply int) []board.Move {
 
 	for i, m := range moves {
 		if m == ttBestMove {
-			scoredMoves[i] = scoredMove{move: m, score: 100000}
+			scoredMoves[i] = ScoredMove{move: m, score: 100000}
 			continue
 		}
 
@@ -71,27 +69,30 @@ func (s *Search) OrderMoves(moves []board.Move, ply int) []board.Move {
 			}
 		}
 
-		scoredMoves[i] = scoredMove{move: m, score: moveScoreGuess}
+		scoredMoves[i] = ScoredMove{move: m, score: moveScoreGuess}
 	}
 
-	sort.Slice(scoredMoves, func(i int, j int) bool {
-		return scoredMoves[i].score > scoredMoves[j].score
+	slices.SortFunc(scoredMoves, func(a ScoredMove, b ScoredMove) int {
+		return b.score - a.score
 	})
 
 	for i, sm := range scoredMoves {
-		sortedMoves[i] = sm.move
+		moves[i] = sm.move
 	}
 
-	return sortedMoves
+	return moves
 }
 
 // GetAndOrderSharpMoves takes a list of moves and filters for sharp moves and orders them
 func (s *Search) GetAndOrderSharpMoves(moves []board.Move, ply int) []board.Move {
-	var sharpMoves []board.Move = make([]board.Move, 0, len(moves))
+	sharpCount := 0
 	for _, m := range moves {
 		if m.IsCapture() || m.IsPromotion() {
-			sharpMoves = append(sharpMoves, m)
+			moves[sharpCount] = m
+			sharpCount++
 		}
 	}
+
+	sharpMoves := moves[:sharpCount]
 	return s.OrderMoves(sharpMoves, ply)
 }

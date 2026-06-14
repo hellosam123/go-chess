@@ -16,6 +16,11 @@ const MaxAbsolutePly = 64
 
 const checkmateThreshold = 29000
 
+type ScoredMove struct {
+	move  board.Move
+	score int
+}
+
 // I've tried experimenting with an OOP approach for the engine
 type Search struct {
 	Board        *board.Board
@@ -29,6 +34,8 @@ type Search struct {
 	SearchTimeBudget time.Duration
 	AnalysisMode     bool
 	Aborted          bool
+
+	ScoredMoveBuffer [218]ScoredMove
 
 	KillerMoves [MaxAbsolutePly][2]board.Move
 
@@ -175,7 +182,7 @@ func (s *Search) RootSearch() (move board.Move, score int, depth int8, nodes int
 				pvStr += s.PVTable[0][i].MoveToString() + " "
 			}
 
-			fmt.Printf("info depth %d seldepth %d score %d nodes %d nps %d time %d pv %s\n", currentDepth, s.SelDepth, finalBestEval, s.Nodes, nps, timeElapsed, pvStr)
+			fmt.Printf("info depth %d seldepth %d score cp %d nodes %d nps %d time %d pv %s\n", currentDepth, s.SelDepth, finalBestEval, s.Nodes, nps, timeElapsed, pvStr)
 		}
 	}
 
@@ -272,7 +279,7 @@ func (s *Search) alphaBetaSearch(ply int, depth int8, alpha int, beta int, isPV 
 	for i, m := range moves {
 		s.Nodes++
 
-		if !s.AnalysisMode && s.Nodes%2048 == 0 {
+		if !s.AnalysisMode && s.Nodes%8192 == 0 {
 			if time.Since(s.StartTime) > s.SearchTimeBudget {
 				s.Aborted = true
 				return 0
@@ -369,8 +376,9 @@ func (s *Search) alphaBetaSearch(ply int, depth int8, alpha int, beta int, isPV 
 					side = 1
 				}
 
-				if s.HistoryTable[side][m.GetFrom()][m.GetTo()] > -20000 {
-					s.HistoryTable[side][m.GetFrom()][m.GetTo()] -= int(depth) * int(depth)
+				s.HistoryTable[side][m.GetFrom()][m.GetTo()] -= int(depth) * int(depth)
+				if s.HistoryTable[side][m.GetFrom()][m.GetTo()] < -20000 {
+					s.HistoryTable[side][m.GetFrom()][m.GetTo()] = -20000
 				}
 			}
 		}
@@ -495,40 +503,15 @@ func (s *Search) iterateHistoryHeuristics() {
 func (s *Search) iterateEndgameHistoryHeuristics() {
 	for side := 0; side < 2; side++ {
 		for from := 0; from < 64; from++ {
+			fromPiece := s.Board.GetPiece(from)
+			if fromPiece == board.W_King || fromPiece == board.B_King {
+				continue
+			}
 			for to := 0; to < 64; to++ {
-
-				if s.Board.GetPiece(from) != board.W_King && s.Board.GetPiece(from) != board.B_King {
-					s.HistoryTable[side][from][to] = s.HistoryTable[side][from][to] * 1 / 2
-				}
+				s.HistoryTable[side][from][to] = s.HistoryTable[side][from][to] * 1 / 2
 			}
 		}
 	}
-}
-
-func (s *Search) getPV(depth int8, firstMove board.Move) []board.Move {
-	pv := make([]board.Move, 0, depth)
-	unPV := make([]board.UnMove, 0, depth)
-
-	pv = append(pv, firstMove)
-	unPV = append(unPV, s.Board.MakeMove(firstMove))
-
-	for i := int8(1); i < depth; i++ {
-		ttIndex := s.Board.HashKey & s.TT.Mask
-		entry := s.TT.Entries[ttIndex]
-
-		if entry.HashKey == s.Board.HashKey && entry.BestMove != 0 {
-			pv = append(pv, entry.BestMove)
-			unPV = append(unPV, s.Board.MakeMove(entry.BestMove))
-		} else {
-			break
-		}
-	}
-
-	for i := len(unPV) - 1; i >= 0; i-- {
-		s.Board.UnMakeMove(pv[i], unPV[i])
-	}
-
-	return pv
 }
 
 func scoreToTT(score int, ply int) int16 {
