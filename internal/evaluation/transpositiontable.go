@@ -58,3 +58,7 @@ func (tt TranspositionTable) CountEntries() int {
 
 	return count
 }
+
+func (tt TranspositionTable) ResetTable() {
+	clear(tt.Entries)
+}

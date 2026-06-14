@@ -184,6 +184,8 @@ func Evaluate(b *board.Board) int {
 	totalMGScore += attackMaps.WMGTotalScore - attackMaps.BMGTotalScore
 	totalEGScore += attackMaps.WEGTotalScore - attackMaps.BEGTotalScore
 
+	totalMGScore += PawnShieldEval(b, true) - PawnShieldEval(b, false)
+
 	allPieceMask := b.AllPieces
 
 	for allPieceMask != 0 {

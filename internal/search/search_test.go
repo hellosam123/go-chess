@@ -5,14 +5,15 @@ import (
 	"time"
 
 	"github.com/hellosam123/go-chess/internal/board"
-	eval "github.com/hellosam123/go-chess/internal/evaluation"
+	"github.com/hellosam123/go-chess/internal/engine"
 )
 
 func TestSearch(t *testing.T) {
-	b := board.NewStartingBoard()
-	tt := *eval.NewTranspositionTable(32)
+	e := engine.NewEngine(32)
+
 	time, _ := time.ParseDuration("1s")
-	t.Log(RootSearch(b, time, &tt))
+	s := NewSearch(e, time, false)
+	t.Log(s.RootSearch())
 }
 
 func BenchmarkRandomMove(b *testing.B) {

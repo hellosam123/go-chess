@@ -25,7 +25,7 @@ func Perft(b *Board, depth int) int {
 func TestPerft(t *testing.T) {
 	gameBoard := NewStartingBoard()
 	gameBoard.ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
-	t.Log(Perft(gameBoard, 1))
+	t.Log(Perft(gameBoard, 6))
 }
 
 func TestPerftAll(t *testing.T) {

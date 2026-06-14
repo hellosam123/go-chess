@@ -6,17 +6,15 @@ import (
 	"os"
 	"strings"
 
-	"github.com/hellosam123/go-chess/internal/board"
-	eval "github.com/hellosam123/go-chess/internal/evaluation"
+	"github.com/hellosam123/go-chess/internal/engine"
 	"github.com/hellosam123/go-chess/uci"
 )
 
 func main() {
 	fmt.Println("A Golang chess engine")
 
-	var globalTT *eval.TranspositionTable = eval.NewTranspositionTable(32)
+	engine := engine.NewEngine(32)
 
-	gameBoard := board.NewStartingBoard()
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -35,22 +33,22 @@ func main() {
 		case "isready":
 			fmt.Println("readyok")
 		case "ucinewgame":
-			gameBoard.ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
-			globalTT = eval.NewTranspositionTable(32)
+			engine.Board.ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+			engine.ResetEngine()
 		case "position":
-			err := uci.HandlePosition(gameBoard, tokens[1:])
+			err := uci.HandlePosition(engine, tokens[1:])
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
 				os.Exit(1)
 			}
 		case "go":
-			err := uci.HandleGo(gameBoard, tokens[1:], globalTT)
+			err := uci.HandleGo(engine, tokens[1:])
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
 				os.Exit(1)
 			}
 		case "print":
-			gameBoard.PrintBoard()
+			engine.Board.PrintBoard()
 		case "exit":
 			return
 		}

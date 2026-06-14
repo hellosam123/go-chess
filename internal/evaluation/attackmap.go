@@ -26,9 +26,13 @@ const (
 )
 
 var kingNumAttackedWeight = [8]int{0, 0, 50, 75, 88, 94, 97, 99}
+var kingPawnShieldWeight = [5]int{0, 40, 70, 90, 95}
 
 var wKingAttackZones [64]uint64
 var bKingAttackZones [64]uint64
+
+var wKingShieldZones [64]uint64
+var bKingShieldZones [64]uint64
 
 type AttackMaps struct {
 	WAll   uint64
@@ -49,6 +53,7 @@ type AttackMaps struct {
 
 func init() {
 	initKingAttackZones()
+	initKingShieldZones()
 }
 
 func GenerateAttackMaps(b *board.Board) AttackMaps {
@@ -228,6 +233,24 @@ func GenerateAttackMaps(b *board.Board) AttackMaps {
 	return attackMaps
 }
 
+func PawnShieldEval(b *board.Board, color bool) int {
+	var usPawns uint64
+	var kingShieldZone uint64
+	if color {
+		usPawns = b.Pieces[board.W_Pawn]
+		kingShieldZone = wKingShieldZones[bits.TrailingZeros64(b.Pieces[board.W_King])]
+	} else {
+		usPawns = b.Pieces[board.B_Pawn]
+		kingShieldZone = bKingShieldZones[bits.TrailingZeros64(b.Pieces[board.B_King])]
+	}
+
+	pawnCount := bits.OnesCount64(usPawns & kingShieldZone)
+	if pawnCount > 4 {
+		pawnCount = 4
+	}
+	return kingPawnShieldWeight[pawnCount]
+}
+
 func initKingAttackZones() {
 	for sq := 0; sq < 64; sq++ {
 		rank := sq / 8
@@ -262,5 +285,39 @@ func initKingAttackZones() {
 		}
 
 		bKingAttackZones[sq] = bKingAttackZone
+	}
+}
+
+func initKingShieldZones() {
+	for sq := 0; sq < 64; sq++ {
+		rank := sq / 8
+		file := sq % 8
+
+		var kingShieldRow uint64 = 1 << sq
+		if file > 0 {
+			kingShieldRow |= 1 << (sq - 1)
+		}
+		if file < 7 {
+			kingShieldRow |= 1 << (sq + 1)
+		}
+
+		wKingShieldZone := kingShieldRow
+
+		for i, r := 1, rank; r < 7 && i <= 2; i, r = i+1, r+1 {
+			wKingShieldZone |= kingShieldRow << (8 * i)
+		}
+
+		wKingShieldZones[sq] = wKingShieldZone
+
+		bKingShieldZone := kingShieldRow
+		if rank < 7 {
+			bKingShieldZone |= kingShieldRow << 8
+		}
+
+		for i, r := 1, rank; r > 0 && i <= 2; i, r = i+1, r-1 {
+			bKingShieldZone |= kingShieldRow >> (8 * i)
+		}
+
+		bKingShieldZones[sq] = bKingShieldZone
 	}
 }

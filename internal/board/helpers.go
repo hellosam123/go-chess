@@ -136,3 +136,38 @@ func GetSmallestAttacker(b *Board, attackersMask uint64, color bool) (Piece, int
 func IsSlider(piece Piece) bool {
 	return (piece >= W_Bishop && piece <= W_Queen) || (piece >= B_Bishop || piece <= B_Queen)
 }
+
+// CheckFiftyMoveRule checks if the current board position triggers the fifty move rule
+func (b *Board) CheckFiftyMoveRule() bool {
+	if b.HalfMoveClock >= 100 {
+		return true
+	}
+	return false
+}
+
+// CheckRepetition checks if the current board position has already happened in the game history
+func (b *Board) CheckRepetition() bool {
+	if b.HalfMoveClock < 2 {
+		return false
+	}
+
+	limit := len(b.History) - b.HalfMoveClock
+	if limit < 0 {
+		limit = 0
+	}
+
+	for i := len(b.History) - 2; i >= limit; i-- {
+		if b.History[i] == b.HashKey {
+			return true
+		}
+	}
+	return false
+}
+
+// HasNonPawnPieces checks if a side has non pawn pieces. Used for zugzwang detection.
+func (b *Board) HasNonPawnPieces(color bool) bool {
+	if color {
+		return (b.Pieces[W_Pawn] | b.Pieces[W_King]) != b.AllPieces
+	}
+	return (b.Pieces[B_Pawn] | b.Pieces[B_King]) != b.AllPieces
+}
