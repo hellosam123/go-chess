@@ -2,6 +2,7 @@
 package search
 
 import (
+	"fmt"
 	"math/rand/v2"
 	"time"
 
@@ -15,6 +16,7 @@ const MaxAbsolutePly = 64
 
 const checkmateThreshold = 29000
 
+// I've tried experimenting with an OOP approach for the engine
 type Search struct {
 	Board        *board.Board
 	TT           *eval.TranspositionTable
@@ -25,20 +27,23 @@ type Search struct {
 	StartTime time.Time
 
 	SearchTimeBudget time.Duration
-	Infinite         bool
+	AnalysisMode     bool
 	Aborted          bool
 
 	KillerMoves [MaxAbsolutePly][2]board.Move
+
+	PVTable  [MaxAbsolutePly][MaxAbsolutePly]board.Move
+	PVLength [MaxAbsolutePly]int
 }
 
-func NewSearch(e *engine.Engine, searchTimeBudget time.Duration, infinite bool) *Search {
+func NewSearch(e *engine.Engine, searchTimeBudget time.Duration, analysisMode bool) *Search {
 	return &Search{
 		Board:            e.Board,
 		TT:               e.TT,
 		HistoryTable:     e.HistoryTable,
 		StartTime:        time.Now(),
 		SearchTimeBudget: searchTimeBudget,
-		Infinite:         infinite,
+		AnalysisMode:     analysisMode,
 	}
 }
 
@@ -50,7 +55,6 @@ func RandomMove(b *board.Board) board.Move {
 
 // RootSearch uses iterative deepening and initializes the alpha-beta search.
 func (s *Search) RootSearch() (move board.Move, score int, depth int8, nodes int, elapsed time.Duration) {
-
 	s.clearSearchHeuristics()
 
 	moves, checkers := s.Board.GenerateLegalMoves()
@@ -72,6 +76,9 @@ func (s *Search) RootSearch() (move board.Move, score int, depth int8, nodes int
 	var delta int = 40
 
 	for currentDepth = 1; currentDepth <= MaxSearchPly; currentDepth++ {
+		s.SelDepth = 0
+		s.PVLength[0] = 0
+
 		if s.Aborted {
 			break
 		}
@@ -100,8 +107,9 @@ func (s *Search) RootSearch() (move board.Move, score int, depth int8, nodes int
 			}
 
 			for i, m := range moves {
-				unMove := s.Board.MakeMove(m)
+				s.PVLength[1] = 0
 
+				unMove := s.Board.MakeMove(m)
 				var score int
 
 				// principle variation search
@@ -123,6 +131,10 @@ func (s *Search) RootSearch() (move board.Move, score int, depth int8, nodes int
 				if score > alpha {
 					alpha = score
 					bestMove = m
+
+					s.PVTable[0][0] = m
+					copy(s.PVTable[0][1:MaxAbsolutePly], s.PVTable[1][1:MaxAbsolutePly])
+					s.PVLength[0] = s.PVLength[1] + 1
 				}
 			}
 
@@ -151,6 +163,20 @@ func (s *Search) RootSearch() (move board.Move, score int, depth int8, nodes int
 		}
 
 		s.iterateHistoryHeuristics()
+
+		if s.AnalysisMode {
+			timeElapsed := time.Duration(time.Since(s.StartTime).Milliseconds())
+			if timeElapsed == 0 {
+				timeElapsed = 1
+			}
+			nps := s.Nodes * 1000 / int(timeElapsed)
+			pvStr := ""
+			for i := 0; i < s.PVLength[0]; i++ {
+				pvStr += s.PVTable[0][i].MoveToString() + " "
+			}
+
+			fmt.Printf("info depth %d seldepth %d score %d nodes %d nps %d time %d pv %s\n", currentDepth, s.SelDepth, finalBestEval, s.Nodes, nps, timeElapsed, pvStr)
+		}
 	}
 
 	return finalBestMove, finalBestEval, currentDepth, s.Nodes, time.Duration(time.Since(s.StartTime).Milliseconds())
@@ -246,11 +272,15 @@ func (s *Search) alphaBetaSearch(ply int, depth int8, alpha int, beta int, isPV 
 	for i, m := range moves {
 		s.Nodes++
 
-		if s.Nodes%2048 == 0 {
+		if !s.AnalysisMode && s.Nodes%2048 == 0 {
 			if time.Since(s.StartTime) > s.SearchTimeBudget {
 				s.Aborted = true
 				return 0
 			}
+		}
+
+		if ply < MaxAbsolutePly-1 {
+			s.PVLength[ply+1] = 0
 		}
 
 		var score int
@@ -321,6 +351,16 @@ func (s *Search) alphaBetaSearch(ply int, depth int8, alpha int, beta int, isPV 
 			flag = eval.Exact
 			alpha = score
 			bestMove = m
+
+			s.PVTable[ply][ply] = m
+			if ply < MaxAbsolutePly-1 {
+				nextPly := ply + 1
+				copy(s.PVTable[ply][nextPly:MaxAbsolutePly], s.PVTable[nextPly][nextPly:MaxAbsolutePly])
+				s.PVLength[ply] = s.PVLength[nextPly] + 1
+			} else {
+				s.PVLength[ply] = 1
+			}
+
 		} else {
 			// history malus
 			if !m.IsCapture() {
@@ -370,7 +410,9 @@ func (s *Search) quiescenceSearch(ply int, alpha int, beta int) int {
 	}
 
 	ply++
-	s.SelDepth = ply
+	if ply > s.SelDepth {
+		s.SelDepth = ply
+	}
 
 	moves, checkers := s.Board.GenerateLegalMoves()
 	if len(moves) == 0 {
@@ -461,6 +503,32 @@ func (s *Search) iterateEndgameHistoryHeuristics() {
 			}
 		}
 	}
+}
+
+func (s *Search) getPV(depth int8, firstMove board.Move) []board.Move {
+	pv := make([]board.Move, 0, depth)
+	unPV := make([]board.UnMove, 0, depth)
+
+	pv = append(pv, firstMove)
+	unPV = append(unPV, s.Board.MakeMove(firstMove))
+
+	for i := int8(1); i < depth; i++ {
+		ttIndex := s.Board.HashKey & s.TT.Mask
+		entry := s.TT.Entries[ttIndex]
+
+		if entry.HashKey == s.Board.HashKey && entry.BestMove != 0 {
+			pv = append(pv, entry.BestMove)
+			unPV = append(unPV, s.Board.MakeMove(entry.BestMove))
+		} else {
+			break
+		}
+	}
+
+	for i := len(unPV) - 1; i >= 0; i-- {
+		s.Board.UnMakeMove(pv[i], unPV[i])
+	}
+
+	return pv
 }
 
 func scoreToTT(score int, ply int) int16 {

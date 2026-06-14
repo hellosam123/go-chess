@@ -63,6 +63,7 @@ func HandlePosition(e *engine.Engine, args []string) error {
 func HandleGo(e *engine.Engine, args []string) error {
 	var timeLeft int  // in ms
 	var increment int // in ms
+	var analysisMode bool = false
 	var err error
 
 	if len(args) == 0 {
@@ -111,13 +112,15 @@ func HandleGo(e *engine.Engine, args []string) error {
 						}
 					}
 				}
+			case "infinite":
+				analysisMode = true
 			}
 		}
 	}
 
 	searchTimeBudget := time.Duration(timeLeft/20+increment/2) * time.Millisecond
 
-	s := search.NewSearch(e, searchTimeBudget, false)
+	s := search.NewSearch(e, searchTimeBudget, analysisMode)
 	move, score, depth, nodes, elapsed := s.RootSearch()
 	if !e.Board.ActiveColor {
 		score = -score
