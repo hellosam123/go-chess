@@ -12,7 +12,7 @@ func TestSearch(t *testing.T) {
 	e := engine.NewEngine(32)
 
 	time, _ := time.ParseDuration("1.000s")
-	s := NewSearch(e, time, false)
+	s := NewSearch(e.Board, e.TT, e.HistoryTable, &e.SearchAbort, time, false)
 	t.Log(s.RootSearch())
 }
 

@@ -48,7 +48,7 @@ func NewTranspositionTable(sizeMB int) *TranspositionTable {
 	}
 }
 
-func (tt TranspositionTable) CountEntries() int {
+func (tt *TranspositionTable) CountEntries() int {
 	count := 0
 	for i := 0; i < len(tt.Entries); i++ {
 		if tt.Entries[i].HashKey != 0 {
@@ -59,6 +59,6 @@ func (tt TranspositionTable) CountEntries() int {
 	return count
 }
 
-func (tt TranspositionTable) ResetTable() {
+func (tt *TranspositionTable) ResetTable() {
 	clear(tt.Entries)
 }

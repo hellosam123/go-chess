@@ -164,7 +164,7 @@ func (b *Board) CheckRepetition() bool {
 		limit = 0
 	}
 
-	for i := len(b.History) - 2; i >= limit; i -= 2 {
+	for i := len(b.History) - 2; i >= limit; i -= 1 {
 		if b.History[i] == b.HashKey {
 			return true
 		}

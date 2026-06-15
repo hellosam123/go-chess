@@ -13,7 +13,7 @@ import (
 func main() {
 	fmt.Println("A Golang chess engine")
 
-	engine := engine.NewEngine(32)
+	e := engine.NewEngine(32)
 
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
@@ -33,23 +33,34 @@ func main() {
 		case "isready":
 			fmt.Println("readyok")
 		case "ucinewgame":
-			engine.Board.ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
-			engine.ResetEngine()
+			e.SearchAbort.Store(true)
+			e.SearchWG.Wait()
+			e.Board.ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+			e.ResetEngine()
 		case "position":
-			err := uci.HandlePosition(engine, tokens[1:])
+			e.SearchAbort.Store(true)
+			e.SearchWG.Wait()
+			err := uci.HandlePosition(e, tokens[1:])
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
 				os.Exit(1)
 			}
 		case "go":
-			err := uci.HandleGo(engine, tokens[1:])
+			e.SearchAbort.Store(true)
+			e.SearchWG.Wait()
+			e.SearchAbort.Store(false)
+			err := uci.HandleGo(e, tokens[1:])
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
 				os.Exit(1)
 			}
 		case "print":
-			engine.Board.PrintBoard()
-		case "exit":
+			e.Board.PrintBoard()
+		case "stop":
+			e.SearchAbort.Store(true)
+		case "quit":
+			e.SearchAbort.Store(true)
+			e.SearchWG.Wait()
 			return
 		}
 

@@ -120,31 +120,38 @@ func HandleGo(e *engine.Engine, args []string) error {
 
 	searchTimeBudget := time.Duration(timeLeft/20+increment/2) * time.Millisecond
 
-	s := search.NewSearch(e, searchTimeBudget, analysisMode)
-	move, score, depth, nodes, elapsed := s.RootSearch()
-	if !e.Board.ActiveColor {
-		score = -score
-	}
+	e.SearchWG.Add(1)
+	go func() {
+		defer e.SearchWG.Done()
 
-	moveStr := move.MoveToString()
+		s := search.NewSearch(e.Board, e.TT, e.HistoryTable, &e.SearchAbort, searchTimeBudget, analysisMode)
+		move, score, depth, nodes, elapsed := s.RootSearch()
 
-	var mateThreshold int = 29000
-	var mateScore int = 30000
+		if !analysisMode {
+			if !e.Board.ActiveColor {
+				score = -score
+			}
 
-	if score > mateThreshold {
-		pliesToMate := mateScore - score
-		movesToMate := (pliesToMate + 1) / 2
-		fmt.Printf("info depth %d time %d nodes %d score mate %d\n", depth, elapsed, nodes, movesToMate)
-	} else if score < -mateThreshold {
-		pliesToMate := -mateScore - score
-		movesToMate := (pliesToMate + 1) / 2
-		fmt.Printf("info depth %d time %d nodes %d score mate %d\n", depth, elapsed, nodes, movesToMate)
-	} else {
-		fmt.Printf("info depth %d time %d nodes %d score cp %d\n", depth, elapsed, nodes, score)
-	}
-	fmt.Printf("bestmove %s\n", moveStr)
+			var mateThreshold int = 29000
+			var mateScore int = 30000
 
-	os.Stdout.Sync()
+			if score > mateThreshold {
+				pliesToMate := mateScore - score
+				movesToMate := (pliesToMate + 1) / 2
+				fmt.Printf("info depth %d time %d nodes %d score mate %d\n", depth, elapsed, nodes, movesToMate)
+			} else if score < -mateThreshold {
+				pliesToMate := -mateScore - score
+				movesToMate := (pliesToMate + 1) / 2
+				fmt.Printf("info depth %d time %d nodes %d score mate %d\n", depth, elapsed, nodes, -movesToMate)
+			} else {
+				fmt.Printf("info depth %d time %d nodes %d score cp %d\n", depth, elapsed, nodes, score)
+			}
+		}
+		moveStr := move.MoveToString()
+		fmt.Printf("bestmove %s\n", moveStr)
+
+		os.Stdout.Sync()
+	}()
 
 	return nil
 }

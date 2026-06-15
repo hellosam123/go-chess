@@ -4,10 +4,10 @@ package search
 import (
 	"fmt"
 	"math/rand/v2"
+	"sync/atomic"
 	"time"
 
 	"github.com/hellosam123/go-chess/internal/board"
-	"github.com/hellosam123/go-chess/internal/engine"
 	eval "github.com/hellosam123/go-chess/internal/evaluation"
 )
 
@@ -31,9 +31,9 @@ type Search struct {
 	SelDepth  int
 	StartTime time.Time
 
+	Aborted          *atomic.Bool
 	SearchTimeBudget time.Duration
 	AnalysisMode     bool
-	Aborted          bool
 
 	ScoredMoveBuffer [218]ScoredMove
 
@@ -43,12 +43,13 @@ type Search struct {
 	PVLength [MaxAbsolutePly]int
 }
 
-func NewSearch(e *engine.Engine, searchTimeBudget time.Duration, analysisMode bool) *Search {
+func NewSearch(b *board.Board, tt *eval.TranspositionTable, ht *[2][64][64]int, aborted *atomic.Bool, searchTimeBudget time.Duration, analysisMode bool) *Search {
 	return &Search{
-		Board:            e.Board,
-		TT:               e.TT,
-		HistoryTable:     e.HistoryTable,
+		Board:            b,
+		TT:               tt,
+		HistoryTable:     ht,
 		StartTime:        time.Now(),
+		Aborted:          aborted,
 		SearchTimeBudget: searchTimeBudget,
 		AnalysisMode:     analysisMode,
 	}
@@ -61,7 +62,7 @@ func RandomMove(b *board.Board) board.Move {
 }
 
 // RootSearch uses iterative deepening and initializes the alpha-beta search.
-func (s *Search) RootSearch() (move board.Move, score int, depth int8, nodes int, elapsed time.Duration) {
+func (s *Search) RootSearch() (move board.Move, score int, depth int8, nodes int, elapsed int) {
 	s.clearSearchHeuristics()
 
 	moves, checkers := s.Board.GenerateLegalMoves()
@@ -86,7 +87,7 @@ func (s *Search) RootSearch() (move board.Move, score int, depth int8, nodes int
 		s.SelDepth = 0
 		s.PVLength[0] = 0
 
-		if s.Aborted {
+		if s.Aborted.Load() {
 			break
 		}
 
@@ -125,13 +126,13 @@ func (s *Search) RootSearch() (move board.Move, score int, depth int8, nodes int
 				} else {
 					score = -s.alphaBetaSearch(0, currentDepth-1, -alpha-1, -alpha, false)
 
-					if score > alpha && !s.Aborted {
+					if score > alpha && !s.Aborted.Load() {
 						score = -s.alphaBetaSearch(0, currentDepth-1, -beta, -alpha, true)
 					}
 				}
 				s.Board.UnMakeMove(m, unMove)
 
-				if s.Aborted {
+				if s.Aborted.Load() {
 					break
 				}
 
@@ -145,7 +146,7 @@ func (s *Search) RootSearch() (move board.Move, score int, depth int8, nodes int
 				}
 			}
 
-			if s.Aborted {
+			if s.Aborted.Load() {
 				break
 			}
 
@@ -164,7 +165,7 @@ func (s *Search) RootSearch() (move board.Move, score int, depth int8, nodes int
 			break
 		}
 
-		if !s.Aborted {
+		if !s.Aborted.Load() {
 			finalBestEval = alpha
 			finalBestMove = bestMove
 		}
@@ -172,7 +173,7 @@ func (s *Search) RootSearch() (move board.Move, score int, depth int8, nodes int
 		s.iterateHistoryHeuristics()
 
 		if s.AnalysisMode {
-			timeElapsed := time.Duration(time.Since(s.StartTime).Milliseconds())
+			timeElapsed := time.Since(s.StartTime).Milliseconds()
 			if timeElapsed == 0 {
 				timeElapsed = 1
 			}
@@ -186,7 +187,7 @@ func (s *Search) RootSearch() (move board.Move, score int, depth int8, nodes int
 		}
 	}
 
-	return finalBestMove, finalBestEval, currentDepth, s.Nodes, time.Duration(time.Since(s.StartTime).Milliseconds())
+	return finalBestMove, finalBestEval, currentDepth, s.Nodes, int(time.Since(s.StartTime).Milliseconds())
 }
 
 // alphaBetaSearch recursively searches a position until a given depth, using alpha-beta pruning
@@ -203,7 +204,7 @@ func (s *Search) alphaBetaSearch(ply int, depth int8, alpha int, beta int, isPV 
 		return s.quiescenceSearch(ply, alpha, beta)
 	}
 
-	if s.Aborted {
+	if s.Aborted.Load() {
 		return 0
 	}
 
@@ -292,7 +293,7 @@ func (s *Search) alphaBetaSearch(ply int, depth int8, alpha int, beta int, isPV 
 
 		if !s.AnalysisMode && s.Nodes%8192 == 0 {
 			if time.Since(s.StartTime) > s.SearchTimeBudget {
-				s.Aborted = true
+				s.Aborted.Store(true)
 				return 0
 			}
 		}
@@ -333,14 +334,14 @@ func (s *Search) alphaBetaSearch(ply int, depth int8, alpha int, beta int, isPV 
 				score = -s.alphaBetaSearch(ply, depth-1, -alpha-1, -alpha, false)
 			}
 
-			if score > alpha && score < beta && !s.Aborted {
+			if score > alpha && score < beta && !s.Aborted.Load() {
 				// full width search
 				score = -s.alphaBetaSearch(ply, depth-1, -beta, -alpha, true)
 			}
 		}
 		s.Board.UnMakeMove(m, unMove)
 
-		if s.Aborted {
+		if s.Aborted.Load() {
 			return 0
 		}
 

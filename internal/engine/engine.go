@@ -2,6 +2,9 @@
 package engine
 
 import (
+	"sync"
+	"sync/atomic"
+
 	"github.com/hellosam123/go-chess/internal/board"
 	eval "github.com/hellosam123/go-chess/internal/evaluation"
 )
@@ -10,6 +13,8 @@ type Engine struct {
 	HistoryTable *[2][64][64]int
 	Board        *board.Board
 	TT           *eval.TranspositionTable
+	SearchAbort  atomic.Bool
+	SearchWG     sync.WaitGroup
 }
 
 func NewEngine(ttSizeMB int) *Engine {
