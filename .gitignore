@@ -31,4 +31,6 @@ go.work.sum
 # .idea/
 # .vscode/
 
+*.epd
+
 fastchess-linux-x86-64/

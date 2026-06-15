@@ -6,28 +6,6 @@ import (
 	"github.com/hellosam123/go-chess/internal/board"
 )
 
-const (
-	mgKnightWeight = 10
-	egKnightWeight = 5
-
-	mgBishopWeight = 10
-	egBishopWeight = 5
-
-	mgRookWeight = 5
-	egRookWeight = 10
-
-	mgQueenWeight = 5
-	egQueenWeight = 5
-
-	kingAttackWeightKnight = 10
-	kingAttackWeightBishop = 10
-	kingAttackWeightRook   = 20
-	kingAttackWeightQueen  = 40
-)
-
-var kingNumAttackedWeight = [8]int{0, 0, 50, 75, 88, 94, 97, 99}
-var kingPawnShieldWeight = [5]int{0, 40, 70, 90, 95}
-
 var wKingAttackZones [64]uint64
 var bKingAttackZones [64]uint64
 
@@ -87,12 +65,12 @@ func GenerateAttackMaps(b *board.Board) AttackMaps {
 
 		if knightAttacks&bKingAttackZone != 0 {
 			attackMaps.WAttackersCount++
-			attackMaps.WAttackWeight += kingAttackWeightKnight
+			attackMaps.WAttackWeight += Params[KingAttackerWeightN]
 		}
 
 		mobilityMask := knightAttacks &^ attackMaps.BPawns &^ b.WPieces
-		attackMaps.WMGTotalScore += bits.OnesCount64(mobilityMask) * mgKnightWeight
-		attackMaps.WEGTotalScore += bits.OnesCount64(mobilityMask) * egKnightWeight
+		attackMaps.WMGTotalScore += bits.OnesCount64(mobilityMask) * Params[MGMobilityWeightN]
+		attackMaps.WEGTotalScore += bits.OnesCount64(mobilityMask) * Params[EGMobilityWeightN]
 	}
 
 	bKnights := b.Pieces[board.B_Knight]
@@ -104,12 +82,12 @@ func GenerateAttackMaps(b *board.Board) AttackMaps {
 
 		if knightAttacks&wKingAttackZone != 0 {
 			attackMaps.BAttackersCount++
-			attackMaps.BAttackWeight += kingAttackWeightKnight
+			attackMaps.BAttackWeight += Params[KingAttackerWeightN]
 		}
 
 		mobilityMask := knightAttacks &^ attackMaps.WPawns &^ b.BPieces
-		attackMaps.BMGTotalScore += bits.OnesCount64(mobilityMask) * mgKnightWeight
-		attackMaps.BEGTotalScore += bits.OnesCount64(mobilityMask) * egKnightWeight
+		attackMaps.BMGTotalScore += bits.OnesCount64(mobilityMask) * Params[MGMobilityWeightN]
+		attackMaps.BEGTotalScore += bits.OnesCount64(mobilityMask) * Params[EGMobilityWeightN]
 	}
 
 	wRooks := b.Pieces[board.W_Rook]
@@ -121,12 +99,12 @@ func GenerateAttackMaps(b *board.Board) AttackMaps {
 
 		if rookAttacks&bKingAttackZone != 0 {
 			attackMaps.WAttackersCount++
-			attackMaps.WAttackWeight += kingAttackWeightRook
+			attackMaps.WAttackWeight += Params[KingAttackerWeightR]
 		}
 
 		mobilityMask := rookAttacks &^ attackMaps.BPawns &^ b.WPieces
-		attackMaps.WMGTotalScore += bits.OnesCount64(mobilityMask) * mgRookWeight
-		attackMaps.WEGTotalScore += bits.OnesCount64(mobilityMask) * egRookWeight
+		attackMaps.WMGTotalScore += bits.OnesCount64(mobilityMask) * Params[MGMobilityWeightR]
+		attackMaps.WEGTotalScore += bits.OnesCount64(mobilityMask) * Params[EGMobilityWeightR]
 	}
 
 	bRooks := b.Pieces[board.B_Rook]
@@ -138,12 +116,12 @@ func GenerateAttackMaps(b *board.Board) AttackMaps {
 
 		if rookAttacks&wKingAttackZone != 0 {
 			attackMaps.BAttackersCount++
-			attackMaps.BAttackWeight += kingAttackWeightRook
+			attackMaps.BAttackWeight += Params[KingAttackerWeightR]
 		}
 
 		mobilityMask := rookAttacks &^ attackMaps.WPawns &^ b.BPieces
-		attackMaps.BMGTotalScore += bits.OnesCount64(mobilityMask) * mgRookWeight
-		attackMaps.BEGTotalScore += bits.OnesCount64(mobilityMask) * egRookWeight
+		attackMaps.BMGTotalScore += bits.OnesCount64(mobilityMask) * Params[MGMobilityWeightR]
+		attackMaps.BEGTotalScore += bits.OnesCount64(mobilityMask) * Params[EGMobilityWeightR]
 	}
 
 	wBishops := b.Pieces[board.W_Bishop]
@@ -155,12 +133,12 @@ func GenerateAttackMaps(b *board.Board) AttackMaps {
 
 		if bishopAttacks&bKingAttackZone != 0 {
 			attackMaps.WAttackersCount++
-			attackMaps.WAttackWeight += kingAttackWeightBishop
+			attackMaps.WAttackWeight += Params[KingAttackerWeightB]
 		}
 
 		mobilityMask := bishopAttacks &^ attackMaps.BPawns &^ b.WPieces
-		attackMaps.WMGTotalScore += bits.OnesCount64(mobilityMask) * mgBishopWeight
-		attackMaps.WEGTotalScore += bits.OnesCount64(mobilityMask) * egBishopWeight
+		attackMaps.WMGTotalScore += bits.OnesCount64(mobilityMask) * Params[MGMobilityWeightB]
+		attackMaps.WEGTotalScore += bits.OnesCount64(mobilityMask) * Params[EGMobilityWeightB]
 	}
 
 	bBishops := b.Pieces[board.B_Bishop]
@@ -172,12 +150,12 @@ func GenerateAttackMaps(b *board.Board) AttackMaps {
 
 		if bishopAttacks&wKingAttackZone != 0 {
 			attackMaps.BAttackersCount++
-			attackMaps.BAttackWeight += kingAttackWeightBishop
+			attackMaps.BAttackWeight += Params[KingAttackerWeightB]
 		}
 
 		mobilityMask := bishopAttacks &^ attackMaps.WPawns &^ b.BPieces
-		attackMaps.BMGTotalScore += bits.OnesCount64(mobilityMask) * mgBishopWeight
-		attackMaps.BEGTotalScore += bits.OnesCount64(mobilityMask) * egBishopWeight
+		attackMaps.BMGTotalScore += bits.OnesCount64(mobilityMask) * Params[MGMobilityWeightB]
+		attackMaps.BEGTotalScore += bits.OnesCount64(mobilityMask) * Params[EGMobilityWeightB]
 	}
 
 	wQueens := b.Pieces[board.W_Queen]
@@ -190,12 +168,12 @@ func GenerateAttackMaps(b *board.Board) AttackMaps {
 
 		if queenAttacks&bKingAttackZone != 0 {
 			attackMaps.WAttackersCount++
-			attackMaps.WAttackWeight += kingAttackWeightQueen
+			attackMaps.WAttackWeight += Params[KingAttackerWeightQ]
 		}
 
 		mobilityMask := queenAttacks &^ attackMaps.BPawns &^ b.WPieces
-		attackMaps.WMGTotalScore += bits.OnesCount64(mobilityMask) * mgQueenWeight
-		attackMaps.WEGTotalScore += bits.OnesCount64(mobilityMask) * egQueenWeight
+		attackMaps.WMGTotalScore += bits.OnesCount64(mobilityMask) * Params[MGMobilityWeightQ]
+		attackMaps.WEGTotalScore += bits.OnesCount64(mobilityMask) * Params[EGMobilityWeightQ]
 	}
 
 	bQueens := b.Pieces[board.B_Queen]
@@ -208,26 +186,26 @@ func GenerateAttackMaps(b *board.Board) AttackMaps {
 
 		if queenAttacks&wKingAttackZone != 0 {
 			attackMaps.BAttackersCount++
-			attackMaps.BAttackWeight += kingAttackWeightQueen
+			attackMaps.BAttackWeight += Params[KingAttackerWeightQ]
 		}
 
 		mobilityMask := queenAttacks &^ attackMaps.WPawns &^ b.BPieces
-		attackMaps.BMGTotalScore += bits.OnesCount64(mobilityMask) * mgQueenWeight
-		attackMaps.BEGTotalScore += bits.OnesCount64(mobilityMask) * egQueenWeight
+		attackMaps.BMGTotalScore += bits.OnesCount64(mobilityMask) * Params[MGMobilityWeightQ]
+		attackMaps.BEGTotalScore += bits.OnesCount64(mobilityMask) * Params[EGMobilityWeightQ]
 	}
 
 	if attackMaps.WAttackersCount >= 2 {
 		if attackMaps.WAttackersCount > 7 {
 			attackMaps.WAttackersCount = 7
 		}
-		attackMaps.WMGTotalScore += attackMaps.WAttackWeight * kingNumAttackedWeight[attackMaps.WAttackersCount] / 100
+		attackMaps.WMGTotalScore += attackMaps.WAttackWeight * KingNumAttackedWeightArr[attackMaps.WAttackersCount] / 100
 	}
 
 	if attackMaps.BAttackersCount >= 2 {
 		if attackMaps.BAttackersCount > 7 {
 			attackMaps.BAttackersCount = 7
 		}
-		attackMaps.BMGTotalScore += attackMaps.BAttackWeight * kingNumAttackedWeight[attackMaps.BAttackersCount] / 100
+		attackMaps.BMGTotalScore += attackMaps.BAttackWeight * KingNumAttackedWeightArr[attackMaps.BAttackersCount] / 100
 	}
 
 	return attackMaps
@@ -248,7 +226,7 @@ func PawnShieldEval(b *board.Board, color bool) int {
 	if pawnCount > 4 {
 		pawnCount = 4
 	}
-	return kingPawnShieldWeight[pawnCount]
+	return KingPawnShieldWeightArr[pawnCount]
 }
 
 func initKingAttackZones() {

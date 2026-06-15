@@ -7,9 +7,6 @@ import (
 	"github.com/hellosam123/go-chess/internal/board"
 )
 
-var mgValue = [6]int{82, 337, 365, 477, 1025, 0}
-var egValue = [6]int{94, 281, 297, 512, 936, 0}
-
 var mgPawnTable = [64]int{
 	0, 0, 0, 0, 0, 0, 0, 0,
 	98, 134, 61, 95, 68, 126, 34, -11,
@@ -252,17 +249,17 @@ func GetPieceScore(b *board.Board, p board.Piece, sq int) (int, int) {
 	case board.W_Pawn, board.B_Pawn:
 		mgScore, egScore = GetPawnScore(b, p, sq)
 	case board.W_Knight, board.B_Knight:
-		mgScore = mgValue[1] + mgKnightTable[sqIndex]
-		egScore = egValue[1] + egKnightTable[sqIndex]
+		mgScore = MGValue[1] + mgKnightTable[sqIndex]
+		egScore = EGValue[1] + egKnightTable[sqIndex]
 	case board.W_Bishop, board.B_Bishop:
-		mgScore = mgValue[2] + mgBishopTable[sqIndex]
-		egScore = egValue[2] + egBishopTable[sqIndex]
+		mgScore = MGValue[2] + mgBishopTable[sqIndex]
+		egScore = EGValue[2] + egBishopTable[sqIndex]
 	case board.W_Rook, board.B_Rook:
-		mgScore = mgValue[3] + mgRookTable[sqIndex]
-		egScore = egValue[3] + egRookTable[sqIndex]
+		mgScore = MGValue[3] + mgRookTable[sqIndex]
+		egScore = EGValue[3] + egRookTable[sqIndex]
 	case board.W_Queen, board.B_Queen:
-		mgScore = mgValue[4] + mgQueenTable[sqIndex]
-		egScore = egValue[4] + egQueenTable[sqIndex]
+		mgScore = MGValue[4] + mgQueenTable[sqIndex]
+		egScore = EGValue[4] + egQueenTable[sqIndex]
 	case board.W_King, board.B_King:
 		mgScore = mgKingTable[sqIndex]
 		egScore = egKingTable[sqIndex]
@@ -282,8 +279,8 @@ func GetPawnScore(b *board.Board, p board.Piece, sq int) (int, int) {
 		sqIndex = flipSquare(sqIndex)
 	}
 
-	mgScore = mgValue[0] + mgPawnTable[sqIndex]
-	egScore = egValue[0] + egPawnTable[sqIndex]
+	mgScore = MGValue[0] + mgPawnTable[sqIndex]
+	egScore = EGValue[0] + egPawnTable[sqIndex]
 
 	var isPassed bool
 	var isIsolated bool
@@ -327,17 +324,17 @@ func GetPawnScore(b *board.Board, p board.Piece, sq int) (int, int) {
 	}
 
 	if isIsolated && isDoubled {
-		mgScore -= 20
-		egScore -= 20
+		mgScore -= Params[MGIsolatedAndDoubledPenalty]
+		egScore -= Params[EGIsolatedAndDoubledPenalty]
 	} else if isIsolated {
-		mgScore -= 15
+		mgScore -= Params[MGIsolatedPenalty]
 		// for some reason an egScore penalty here reduces elo
 		if !isPassed {
-			egScore -= 10
+			egScore -= Params[EGIsolatedPenalty]
 		}
 	} else if isDoubled {
-		mgScore -= 10
-		egScore -= 10
+		mgScore -= Params[MGDoubledPenalty]
+		egScore -= Params[EGDoubledPenalty]
 	}
 
 	return mgScore, egScore
